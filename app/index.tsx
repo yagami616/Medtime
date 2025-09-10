@@ -23,7 +23,7 @@ import {
   findMedicineById,
 } from "../src/storage/localMedicines";
 import { loadMedicationsCatalog, initializeMedicationsCatalog, searchMedications, SupabaseMedication } from "../src/storage/supabaseMedications";
-import { scheduleReminderNotifications, cancelAllMedicationNotifications } from "../src/notifications/notificationService";
+import { scheduleMedicationNotificationWithAlarm, cancelAllMedicationNotifications } from "../src/notifications/notificationService";
 import { useAuth } from "./app";
 
 /** 🎛️ KNOBS */
@@ -220,11 +220,13 @@ export default function AddOrEditMedicineScreen() {
 
       await saveMedicineLocally(item);
 
-      // Programar notificaciones con botones para el medicamento
+      // Programar notificaciones con modal de alarma para el medicamento
       let totalNotifications = 0;
       for (const scheduledTime of item.times) {
-        const notificationIds = await scheduleReminderNotifications(item, scheduledTime);
-        totalNotifications += notificationIds.length;
+        const notificationId = await scheduleMedicationNotificationWithAlarm(item, scheduledTime);
+        if (notificationId) {
+          totalNotifications++;
+        }
       }
       
       if (totalNotifications > 0) {

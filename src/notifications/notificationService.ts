@@ -2,18 +2,27 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import { MedItem } from '../storage/localMedicines';
 import { loadAlarmSettings, AlarmSettings } from '../storage/alarmSettings';
+import { Audio } from 'expo-av';
+
+// Variable global para el modal de alarma
+let showAlarmModal: ((medication: any) => void) | null = null;
+
+// Función para registrar el callback del modal
+export function setAlarmModalCallback(callback: (medication: any) => void) {
+  showAlarmModal = callback;
+}
 
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
+    shouldShowAlert: false, // No mostrar alert del sistema
+    shouldPlaySound: false, // No reproducir sonido del sistema
     shouldSetBadge: false,
-    shouldShowBanner: true,
-    shouldShowList: true,
+    shouldShowBanner: false, // No mostrar banner del sistema
+    shouldShowList: false, // No mostrar en lista del sistema
   }),
 });
 
@@ -705,24 +714,25 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
     console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Configurar notificación con configuración de alarma y botones de acción
+    // Configurar notificación que activará el modal
     const notificationRequest = {
       identifier: notificationId,
       content: {
         title: '🔔 ¡Hora de medicamento!',
         body: `Es hora de tomar ${medication.name} (${medication.dose})`,
-        sound: alarmSettings.soundEnabled ? 'default' : null,
+        sound: false, // No sonido del sistema
         data: {
           medicationId: medication.id,
           medicationName: medication.name,
           dose: medication.dose,
           scheduledTime: scheduledTime,
           isAlarm: true,
+          showModal: true, // Indicar que debe mostrar modal
         },
         categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
-          vibrate: alarmSettings.vibrationEnabled ? [0, 250, 250, 250] : undefined,
+          vibrate: false, // No vibración del sistema
         }),
       },
       trigger: {

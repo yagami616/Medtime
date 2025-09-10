@@ -11,6 +11,7 @@ import AddOrEdit from "../app/index";
 import Lista from "../app/lista";
 import Historial from "../app/historial";
 import Perfil from "../app/perfil";
+import AlarmModal from "../app/alarmModal";
 import { supabase } from "../src/lib/supabaseClient";
 
 export const navigationRef = createNavigationContainerRef();
@@ -29,6 +30,10 @@ WebBrowser.maybeCompleteAuthSession();
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser>(null);
+  const [alarmModal, setAlarmModal] = useState<{
+    visible: boolean;
+    medication: any | null;
+  }>({ visible: false, medication: null });
 
   useEffect(() => {
     // Configurar notificaciones al iniciar la app
@@ -48,17 +53,28 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener para notificaciones recibidas
     const notificationListener = addNotificationReceivedListener((notification) => {
       console.log('[App] Notificación recibida:', notification);
-      // NO mostrar alerta automática para notificaciones de medicamentos
-      // Las notificaciones del sistema ya tienen sus propios botones
-      if (!notification.request.content.categoryIdentifier && 
-          !notification.request.content.data?.medicationId) {
+      
+      // Si es una notificación de medicamento con modal, mostrar el modal
+      if (notification.request.content.data?.showModal && 
+          notification.request.content.data?.medicationId) {
+        console.log('[App] Mostrando modal de alarma para medicamento');
+        setAlarmModal({
+          visible: true,
+          medication: {
+            id: notification.request.content.data.medicationId,
+            name: notification.request.content.data.medicationName,
+            dose: notification.request.content.data.dose,
+            scheduledTime: notification.request.content.data.scheduledTime,
+          }
+        });
+      } else if (!notification.request.content.categoryIdentifier && 
+                 !notification.request.content.data?.medicationId) {
+        // Solo mostrar alert para notificaciones que no son de medicamentos
         Alert.alert(
           notification.request.content.title || 'Notificación',
           notification.request.content.body || 'Nueva notificación',
           [{ text: 'OK' }]
         );
-      } else {
-        console.log('[App] Notificación de medicamento recibida - usando botones del sistema');
       }
     });
 
@@ -117,7 +133,19 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     [user]
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      <AlarmModal
+        visible={alarmModal.visible}
+        medication={alarmModal.medication}
+        onClose={() => setAlarmModal({ visible: false, medication: null })}
+        onTake={() => console.log('Medicamento tomado')}
+        onSnooze={() => console.log('Medicamento aplazado')}
+        onCancel={() => console.log('Medicamento cancelado')}
+      />
+    </AuthContext.Provider>
+  );
 }
 
 const Drawer = createDrawerNavigator();
