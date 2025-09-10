@@ -93,7 +93,7 @@ export async function scheduleAlarm(medication: MedItem, scheduledTime: string):
     
     // Para horarios muy cercanos (menos de 2 minutos), usar timer
     // Para horarios más lejanos, usar notificación del sistema
-    const timeDiff = triggerDate.getTime() - now.getTime();
+    // timeDiff ya está calculado arriba
     
     if (timeDiff < 2 * 60 * 1000) {
       // Usar timer para horarios cercanos

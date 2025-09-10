@@ -25,6 +25,7 @@ import {
 import { loadMedicationsCatalog, initializeMedicationsCatalog, searchMedications, SupabaseMedication } from "../src/storage/supabaseMedications";
 import { scheduleAlarm, cancelAllAlarmsForMedication } from "../src/alarms/alarmService";
 import { useAuth } from "./app";
+import { shade, combineNextOccurrence } from "../src/utils/helpers";
 
 /** 🎛️ KNOBS */
 const UI = {
@@ -36,42 +37,7 @@ const UI = {
   DARKEN_SECONDARY: -20,
 };
 
-function shade(hex: string, percent: number) {
-  const p = Math.max(-100, Math.min(100, percent)) / 100;
-  const n = (v: number) => {
-    const out = Math.round(p < 0 ? v * (1 + p) : v + (255 - v) * p);
-    return Math.max(0, Math.min(255, out));
-  };
-  const m = hex.replace("#", "");
-  const r = parseInt(m.substring(0, 2), 16);
-  const g = parseInt(m.substring(2, 4), 16);
-  const b = parseInt(m.substring(4, 6), 16);
-  const rr = n(r).toString(16).padStart(2, "0");
-  const gg = n(g).toString(16).padStart(2, "0");
-  const bb = n(b).toString(16).padStart(2, "0");
-  return `#${rr}${gg}${bb}`;
-}
-
 /* ---------- Catálogo de Supabase ---------- */
-
-/* ---------- Helpers ---------- */
-/**
- * Dada una hora del día (Date usado solo por su hora/minuto),
- * devuelve la próxima ocurrencia absoluta:
- * - Si aún no pasó hoy -> hoy a esa hora
- * - Si ya pasó -> mañana a esa hora
- */
-function combineNextOccurrence(timeOnly: Date) {
-  const now = new Date();
-  const scheduled = new Date();
-  scheduled.setHours(timeOnly.getHours(), timeOnly.getMinutes(), 0, 0);
-  if (scheduled.getTime() <= now.getTime()) {
-    const nextDay = new Date(scheduled);
-    nextDay.setDate(nextDay.getDate() + 1);
-    return nextDay;
-  }
-  return scheduled;
-}
 
 export default function AddOrEditMedicineScreen() {
   const nav = useNavigation<any>();

@@ -1,6 +1,7 @@
 // app/perfil.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
@@ -23,6 +24,8 @@ export default function Perfil() {
   // Estados para edición
   const [editName, setEditName] = useState('');
   const [editAge, setEditAge] = useState('');
+  const [editGender, setEditGender] = useState('No especificar');
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   
   // Estados para configuración de alarmas
   const [alarmSettings, setAlarmSettings] = useState<AlarmSettings | null>(null);
@@ -69,6 +72,7 @@ export default function Perfil() {
         if (userProfile) {
           setEditName(userProfile.name);
           setEditAge(userProfile.age?.toString() || '');
+          setEditGender(userProfile.gender || 'No especificar');
         }
       }
       
@@ -86,12 +90,26 @@ export default function Perfil() {
   const handleSave = async () => {
     if (!profile) return;
     
+    // Validaciones
+    if (!editName.trim()) {
+      Alert.alert('Error', 'El nombre es requerido');
+      return;
+    }
+    
+    const age = parseInt(editAge);
+    if (editAge && (isNaN(age) || age < 1 || age > 150)) {
+      Alert.alert('Error', 'La edad debe ser un número entre 1 y 150');
+      return;
+    }
+    
     setLoading(true);
     try {
       const updatedProfile = {
         ...profile,
         name: editName.trim(),
-        age: editAge ? parseInt(editAge) : null,
+        age: editAge ? age : null,
+        gender: editGender,
+        avatar_url: selectedImage || profile?.avatar_url,
       };
 
       const result = await saveProfileToSupabase(updatedProfile);
@@ -115,8 +133,37 @@ export default function Perfil() {
     if (profile) {
       setEditName(profile.name);
       setEditAge(profile.age?.toString() || '');
+      setEditGender(profile.gender || 'No especificar');
     }
     setIsEditing(false);
+  };
+
+  const handleImagePicker = async () => {
+    try {
+      // Solicitar permisos
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permisos', 'Se necesitan permisos para acceder a la galería');
+        return;
+      }
+
+      // Abrir selector de imágenes
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1], // Cuadrado para el avatar
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+        setSelectedImage(imageUri);
+        console.log('Imagen seleccionada:', imageUri);
+      }
+    } catch (error) {
+      console.error('Error al seleccionar imagen:', error);
+      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+    }
   };
 
 
@@ -169,11 +216,15 @@ export default function Perfil() {
 
   return (
     <ScrollView style={s.container}>
-      <Text style={s.title}>Mi perfil</Text>
+      <View style={s.header}>
+        <Text style={s.title}>Perfil</Text>
+      </View>
 
       {/* Avatar */}
       <View style={s.avatarContainer}>
-        {profile?.avatar_url ? (
+        {selectedImage ? (
+          <Image source={{ uri: selectedImage }} style={s.avatar} />
+        ) : profile?.avatar_url ? (
           <Image source={{ uri: profile.avatar_url }} style={s.avatar} />
         ) : (
           <View style={s.avatarPlaceholder}>
@@ -182,29 +233,16 @@ export default function Perfil() {
             </Text>
           </View>
         )}
+        <TouchableOpacity style={s.changePhotoButton} onPress={handleImagePicker}>
+          <Text style={s.changePhotoText}>Cambiar foto</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Información de sesión */}
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>Información de sesión</Text>
-        <Text style={s.row}>Sesión: {info.hasSession ? 'Activa ✅' : 'No activa ❌'}</Text>
-        <Text style={s.row}>Email: {info.email ?? '—'}</Text>
-        <Text style={s.row}>Proveedor: {info.provider ?? '—'}</Text>
-      </View>
 
       {/* Información del perfil */}
-      <View style={s.section}>
-        <View style={s.sectionHeader}>
-          <Text style={s.sectionTitle}>Información personal</Text>
-          {!isEditing && (
-            <TouchableOpacity style={s.editButton} onPress={() => setIsEditing(true)}>
-              <Text style={s.editButtonText}>Editar</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {isEditing ? (
-          <View style={s.editForm}>
+      <View style={s.profileSection}>
+        <View style={s.editForm}>
+          <View style={s.inputGroup}>
             <Text style={s.label}>Nombre</Text>
             <TextInput
               style={s.input}
@@ -212,7 +250,9 @@ export default function Perfil() {
               onChangeText={setEditName}
               placeholder="Ingresa tu nombre"
             />
-            
+          </View>
+          
+          <View style={s.inputGroup}>
             <Text style={s.label}>Edad</Text>
             <TextInput
               style={s.input}
@@ -221,176 +261,176 @@ export default function Perfil() {
               placeholder="Ingresa tu edad"
               keyboardType="numeric"
             />
-
-            <View style={s.buttonRow}>
-              <TouchableOpacity style={[s.button, s.cancelButton]} onPress={handleCancel}>
-                <Text style={s.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[s.button, s.saveButton]} 
-                onPress={handleSave}
-                disabled={loading}
-              >
-                <Text style={s.saveButtonText}>
-                  {loading ? 'Guardando...' : 'Guardar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View>
-            <Text style={s.row}>Nombre: {profile?.name ?? '—'}</Text>
-            <Text style={s.row}>Edad: {profile?.age ? `${profile.age} años` : '—'}</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Sección de configuración de alarmas */}
-      {alarmSettings && (
-        <View style={s.section}>
-          <View style={s.sectionHeader}>
-            <Text style={s.sectionTitle}>🔔 Configuración de Alarmas</Text>
-            {!isEditingAlarms && (
-              <TouchableOpacity style={s.editButton} onPress={() => setIsEditingAlarms(true)}>
-                <Text style={s.editButtonText}>Editar</Text>
-              </TouchableOpacity>
-            )}
           </View>
 
-          {isEditingAlarms ? (
-            <View style={s.editForm}>
-              {/* Toggle principal de alarmas */}
-              <View style={s.toggleRow}>
-                <Text style={s.toggleLabel}>Activar alarmas</Text>
-                <TouchableOpacity
-                  style={[s.toggle, alarmSettings.enabled && s.toggleActive]}
-                  onPress={() => handleToggleAlarm('enabled', !alarmSettings.enabled)}
-                >
-                  <Text style={[s.toggleText, alarmSettings.enabled && s.toggleTextActive]}>
-                    {alarmSettings.enabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+          <View style={s.inputGroup}>
+            <Text style={s.label}>Género</Text>
+            <TouchableOpacity 
+              style={s.genderContainer}
+              onPress={() => {
+                Alert.alert(
+                  'Seleccionar género',
+                  'Elige una opción',
+                  [
+                    { text: 'Masculino', onPress: () => setEditGender('Masculino') },
+                    { text: 'Femenino', onPress: () => setEditGender('Femenino') },
+                    { text: 'No especificar', onPress: () => setEditGender('No especificar') },
+                    { text: 'Cancelar', style: 'cancel' }
+                  ]
+                );
+              }}
+            >
+              <Text style={s.genderText}>{editGender}</Text>
+              <Text style={s.genderArrow}>▼</Text>
+            </TouchableOpacity>
+          </View>
 
-              {/* Toggle de sonido */}
-              <View style={s.toggleRow}>
-                <Text style={s.toggleLabel}>Sonido</Text>
-                <TouchableOpacity
-                  style={[s.toggle, alarmSettings.soundEnabled && s.toggleActive]}
-                  onPress={() => handleToggleAlarm('soundEnabled', !alarmSettings.soundEnabled)}
-                >
-                  <Text style={[s.toggleText, alarmSettings.soundEnabled && s.toggleTextActive]}>
-                    {alarmSettings.soundEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Toggle de vibración */}
-              <View style={s.toggleRow}>
-                <Text style={s.toggleLabel}>Vibración</Text>
-                <TouchableOpacity
-                  style={[s.toggle, alarmSettings.vibrationEnabled && s.toggleActive]}
-                  onPress={() => handleToggleAlarm('vibrationEnabled', !alarmSettings.vibrationEnabled)}
-                >
-                  <Text style={[s.toggleText, alarmSettings.vibrationEnabled && s.toggleTextActive]}>
-                    {alarmSettings.vibrationEnabled ? 'ON' : 'OFF'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Intervalo de recordatorios */}
-              <Text style={s.label}>Intervalo de recordatorios (minutos)</Text>
-              <TextInput
-                style={s.input}
-                value={alarmSettings.reminderInterval.toString()}
-                onChangeText={(text) => {
-                  const value = parseInt(text) || 0;
-                  handleToggleAlarm('reminderInterval', Math.max(0, Math.min(60, value)));
-                }}
-                placeholder="5"
-                keyboardType="numeric"
-              />
-
-              <View style={s.buttonRow}>
-                <TouchableOpacity 
-                  style={[s.button, s.cancelButton]} 
-                  onPress={() => setIsEditingAlarms(false)}
-                >
-                  <Text style={s.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[s.button, s.saveButton]} 
-                  onPress={handleSaveAlarmSettings}
-                >
-                  <Text style={s.saveButtonText}>Guardar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <View>
-              <Text style={s.row}>Estado: {alarmSettings.enabled ? '✅ Activadas' : '❌ Desactivadas'}</Text>
-              <Text style={s.row}>Sonido: {alarmSettings.soundEnabled ? '🔊 Activado' : '🔇 Desactivado'}</Text>
-              <Text style={s.row}>Vibración: {alarmSettings.vibrationEnabled ? '📳 Activada' : '📵 Desactivada'}</Text>
-              <Text style={s.row}>Recordatorios: Cada {alarmSettings.reminderInterval} minutos</Text>
-            </View>
-          )}
+          <TouchableOpacity 
+            style={s.saveButton} 
+            onPress={handleSave}
+            disabled={loading}
+          >
+            <Text style={s.saveButtonText}>
+              {loading ? 'Guardando...' : 'Guardar'}
+            </Text>
+          </TouchableOpacity>
         </View>
-      )}
-
-
-      {/* Botón de prueba del modal de alarma */}
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>Prueba de Alarma</Text>
-        <TouchableOpacity 
-          style={[s.button, { backgroundColor: '#e74c3c', marginTop: 10 }]} 
-          onPress={async () => {
-            try {
-              console.log('Programando alarma de prueba...');
-              const alarmId = await scheduleTestAlarm();
-              if (alarmId) {
-                Alert.alert('Prueba Programada', 'Se programó una alarma de prueba para 5 segundos. Debería aparecer el modal de alarma.');
-              } else {
-                Alert.alert('Error', 'No se pudo programar la alarma de prueba.');
-              }
-            } catch (error) {
-              console.error('Error en prueba:', error);
-              Alert.alert('Error', 'Error al programar la alarma de prueba.');
-            }
-          }}
-        >
-          <Text style={[s.buttonText, { color: '#fff' }]}>🚨 Probar Modal de Alarma</Text>
-        </TouchableOpacity>
       </View>
 
-      <View style={{ height: 20 }} />
-      <Button title="Actualizar perfil" onPress={load} />
     </ScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  centered: { justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: '800', marginBottom: 20, textAlign: 'center', color: '#333' },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#f8f9fa' 
+  },
+  centered: { 
+    justifyContent: 'center', 
+    alignItems: 'center' 
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  title: { 
+    fontSize: 24, 
+    fontWeight: 'bold', 
+    color: '#1f2937',
+    textAlign: 'center'
+  },
   
   // Avatar
-  avatarContainer: { alignItems: 'center', marginBottom: 20 },
-  avatar: { width: 100, height: 100, borderRadius: 50, marginBottom: 10 },
+  avatarContainer: { 
+    alignItems: 'center', 
+    marginBottom: 30,
+    paddingHorizontal: 20
+  },
+  avatar: { 
+    width: 100, 
+    height: 100, 
+    borderRadius: 50, 
+    marginBottom: 10 
+  },
   avatarPlaceholder: { 
     width: 100, 
     height: 100, 
     borderRadius: 50, 
-    backgroundColor: '#e0e0e0', 
+    backgroundColor: '#e5e7eb', 
     justifyContent: 'center', 
     alignItems: 'center',
     marginBottom: 10
   },
-  avatarText: { fontSize: 36, fontWeight: 'bold', color: '#666' },
+  avatarText: { 
+    fontSize: 36, 
+    fontWeight: 'bold', 
+    color: '#6b7280' 
+  },
+  changePhotoButton: {
+    marginTop: 8,
+  },
+  changePhotoText: {
+    color: '#3b82f6',
+    fontSize: 16,
+    fontWeight: '500',
+  },
   
   // Secciones
-  section: { marginBottom: 20, padding: 16, backgroundColor: '#f8f9fa', borderRadius: 12 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 8 },
+  section: { 
+    marginBottom: 20, 
+    padding: 16, 
+    backgroundColor: '#f8f9fa', 
+    borderRadius: 12 
+  },
+  sectionHeader: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: 12 
+  },
+  sectionTitle: { 
+    fontSize: 18, 
+    fontWeight: '600', 
+    color: '#333', 
+    marginBottom: 8 
+  },
+  
+  // Sección de perfil
+  profileSection: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  profileInfo: {
+    gap: 16,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  infoLabel: {
+    fontSize: 16,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: '#1f2937',
+    fontWeight: '600',
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  genderContainer: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: '#f9fafb',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  genderText: {
+    fontSize: 16,
+    color: '#1f2937',
+  },
+  genderArrow: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
   
   // Información
   row: { fontSize: 16, marginTop: 6, color: '#555' },
@@ -418,7 +458,12 @@ const s = StyleSheet.create({
   },
   
   // Botones
-  buttonRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, gap: 12 },
+  buttonRow: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginTop: 16, 
+    gap: 12 
+  },
   button: { 
     flex: 1, 
     paddingVertical: 12, 
@@ -430,9 +475,22 @@ const s = StyleSheet.create({
     borderWidth: 1, 
     borderColor: '#ddd' 
   },
-  cancelButtonText: { color: '#666', fontWeight: '600' },
-  saveButton: { backgroundColor: '#007AFF' },
-  saveButtonText: { color: '#fff', fontWeight: '600' },
+  cancelButtonText: { 
+    color: '#666', 
+    fontWeight: '600' 
+  },
+  saveButton: { 
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  saveButtonText: { 
+    color: '#fff', 
+    fontWeight: '600',
+    fontSize: 16,
+  },
 
 
   // Toggles

@@ -10,6 +10,7 @@ import { addHistoryFromMed } from "../src/storage/history";
 import { saveHistoryEntryToSupabase } from "../src/storage/supabaseHistory";
 import { cancelAllMedicationNotifications } from "../src/notifications/notificationService";
 import { useAuth } from "./app";
+import { shade, fmtHour } from "../src/utils/helpers";
 
 /** 🎛️ Ajustes rápidos */
 const UI = {
@@ -21,30 +22,8 @@ const UI = {
   DELETE_BTN_COLOR: "#e53935",
 };
 
-function shade(hex: string, percent: number) {
-  const p = Math.max(-100, Math.min(100, percent)) / 100;
-  const n = (v: number) => {
-    const out = Math.round(p < 0 ? v * (1 + p) : v + (255 - v) * p);
-    return Math.max(0, Math.min(255, out));
-  };
-  const m = hex.replace("#", "");
-  const r = parseInt(m.substring(0, 2), 16);
-  const g = parseInt(m.substring(2, 4), 16);
-  const b = parseInt(m.substring(4, 6), 16);
-  const rr = n(r).toString(16).padStart(2, "0");
-  const gg = n(g).toString(16).padStart(2, "0");
-  const bb = n(b).toString(16).padStart(2, "0");
-  return `#${rr}${gg}${bb}`;
-}
 
-function fmtHour(iso: string) {
-  const d = new Date(iso);
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-export default function ListaScreen() {
+const ListaScreen = React.memo(function ListaScreen() {
   const nav = useNavigation<any>();
   const { user } = useAuth();
   const [items, setItems] = useState<MedItem[]>([]);
@@ -165,7 +144,9 @@ export default function ListaScreen() {
       )}
     </View>
   );
-}
+});
+
+export default ListaScreen;
 
 const s = StyleSheet.create({
   container: { flex: 1, padding: UI.SCREEN_PADDING, backgroundColor: "#f7f8fa" },
