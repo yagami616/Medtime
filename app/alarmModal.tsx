@@ -39,8 +39,9 @@ export default function AlarmModal({
       playAlarmSound();
       // Vibrar continuamente mientras el modal esté abierto
       const vibrationInterval = setInterval(() => {
-        Vibration.vibrate([0, 1000, 500, 1000]);
-      }, 3000);
+        console.log('[AlarmModal] Vibración continua');
+        Vibration.vibrate([0, 1500, 500, 1500]);
+      }, 2000);
 
       return () => {
         clearInterval(vibrationInterval);
@@ -53,7 +54,8 @@ export default function AlarmModal({
     try {
       // Usar vibración agresiva como alarma
       console.log('[AlarmModal] Iniciando alarma con vibración');
-      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000, 500, 1000]);
+      // Patrón de vibración más agresivo
+      Vibration.vibrate([0, 2000, 1000, 2000, 1000, 2000]);
     } catch (error) {
       console.error('Error playing alarm sound:', error);
     }
@@ -75,17 +77,23 @@ export default function AlarmModal({
     try {
       console.log('[AlarmModal] Marcando medicamento como tomado:', medication);
       
+      // Detener alarma primero
+      await stopAlarm();
+      
       // Marcar como tomado en el historial
-      await addToHistory({
+      const historyEntry = {
         id: Date.now().toString(),
         name: medication.name,
         dose: medication.dose,
         at: new Date().toISOString(),
-        status: 'Tomado',
+        status: 'Tomado' as const,
         scheduledTimes: [medication.scheduledTime],
-      });
+      };
+      
+      console.log('[AlarmModal] Agregando al historial:', historyEntry);
+      await addToHistory(historyEntry);
+      console.log('[AlarmModal] Historial actualizado correctamente');
 
-      await stopAlarm();
       onClose();
       
       Alert.alert('✅ Medicamento Tomado', `${medication.name} registrado correctamente.`);
@@ -124,17 +132,23 @@ export default function AlarmModal({
     try {
       console.log('[AlarmModal] Cancelando medicamento:', medication);
       
+      // Detener alarma primero
+      await stopAlarm();
+      
       // Marcar como cancelado en el historial
-      await addToHistory({
+      const historyEntry = {
         id: Date.now().toString(),
         name: medication.name,
         dose: medication.dose,
         at: new Date().toISOString(),
-        status: 'Cancelado',
+        status: 'Cancelado' as const,
         scheduledTimes: [medication.scheduledTime],
-      });
+      };
+      
+      console.log('[AlarmModal] Agregando al historial:', historyEntry);
+      await addToHistory(historyEntry);
+      console.log('[AlarmModal] Historial actualizado correctamente');
 
-      await stopAlarm();
       onClose();
       
       Alert.alert('❌ Cancelado', `${medication.name} cancelado.`);

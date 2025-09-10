@@ -83,6 +83,8 @@ export async function addToHistory(entry: {
   scheduledTimes: string[];
 }): Promise<void> {
   try {
+    console.log('[History] Iniciando addToHistory con entrada:', entry);
+    
     const historyEntry: HistoryEntry = {
       id: entry.id,
       medId: entry.id, // Usar el mismo ID como medId
@@ -93,10 +95,21 @@ export async function addToHistory(entry: {
       at: entry.at,
     };
     
+    console.log('[History] Creando entrada de historial:', historyEntry);
+    
     const list = await getHistory();
+    console.log('[History] Historial actual antes de agregar:', list.length, 'entradas');
+    
     list.unshift(historyEntry);
+    console.log('[History] Historial después de agregar:', list.length, 'entradas');
+    
     await AsyncStorage.setItem(KEY, JSON.stringify(list));
-    console.log('[History] Entrada agregada:', historyEntry);
+    console.log('[History] ✅ Entrada guardada en AsyncStorage');
+    
+    // Verificar que se guardó correctamente
+    const savedList = await getHistory();
+    console.log('[History] Verificación - historial guardado:', savedList.length, 'entradas');
+    console.log('[History] Última entrada:', savedList[0]);
   } catch (error) {
     console.error('[History] Error al agregar entrada:', error);
     throw error;
