@@ -535,6 +535,59 @@ export async function sendImmediateTestNotificationWithButtons(): Promise<boolea
 }
 
 /**
+ * Programa una notificación de prueba que simula un medicamento real
+ */
+export async function scheduleRealMedicationTest(): Promise<string | null> {
+  try {
+    console.log('[NotificationService] Programando notificación de medicamento real...');
+    
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      console.log('[NotificationService] No se pueden programar notificaciones sin permisos');
+      return null;
+    }
+
+    // Asegurar que las categorías estén configuradas
+    await setupNotificationCategories();
+
+    // Programar para 5 segundos desde ahora
+    const triggerDate = new Date(Date.now() + 5000);
+
+    const testId = `real_medication_test_${Date.now()}`;
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: testId,
+      content: {
+        title: '🔔 ¡Hora de medicamento!',
+        body: 'Es hora de tomar Metformina (500 mg)',
+        sound: 'default',
+        data: {
+          medicationId: 'metformina_test',
+          medicationName: 'Metformina',
+          dose: '500 mg',
+          scheduledTime: '14:35',
+          isAlarm: true,
+        },
+        categoryIdentifier: 'MEDICATION_ALARM',
+        ...(Platform.OS === 'android' && {
+          channelId: 'medtime-reminders',
+        }),
+      },
+      trigger: {
+        type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+      },
+    });
+
+    console.log(`[NotificationService] ✅ Notificación de medicamento real programada para ${triggerDate.toLocaleTimeString()}`);
+    return testId;
+  } catch (error) {
+    console.error('[NotificationService] Error al programar notificación de medicamento real:', error);
+    return null;
+  }
+}
+
+/**
  * Programa una notificación de prueba para verificar que funciona
  */
 export async function scheduleTestNotification(): Promise<string | null> {

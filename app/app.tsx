@@ -48,13 +48,17 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener para notificaciones recibidas
     const notificationListener = addNotificationReceivedListener((notification) => {
       console.log('[App] Notificación recibida:', notification);
-      // No mostrar alerta automática para notificaciones con botones de acción
-      if (!notification.request.content.categoryIdentifier) {
+      // NO mostrar alerta automática para notificaciones de medicamentos
+      // Las notificaciones del sistema ya tienen sus propios botones
+      if (!notification.request.content.categoryIdentifier && 
+          !notification.request.content.data?.medicationId) {
         Alert.alert(
           notification.request.content.title || 'Notificación',
           notification.request.content.body || 'Nueva notificación',
           [{ text: 'OK' }]
         );
+      } else {
+        console.log('[App] Notificación de medicamento recibida - usando botones del sistema');
       }
     });
 

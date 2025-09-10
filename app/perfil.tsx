@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
-import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, sendImmediateTestNotificationWithButtons, diagnoseNotificationSystem } from '../src/notifications/notificationService';
+import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, sendImmediateTestNotificationWithButtons, scheduleRealMedicationTest, diagnoseNotificationSystem } from '../src/notifications/notificationService';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
 
 type AuthInfo = {
@@ -186,6 +186,26 @@ export default function Perfil() {
     } catch (error) {
       console.error('[Perfil] Error al probar notificación con botones:', error);
       Alert.alert('Error', 'No se pudo probar la notificación con botones');
+    }
+  };
+
+  const handleRealMedicationTest = async () => {
+    try {
+      console.log('[Perfil] Probando notificación de medicamento real...');
+      const testId = await scheduleRealMedicationTest();
+      
+      if (testId) {
+        Alert.alert(
+          'Prueba de medicamento real', 
+          'Se programó una notificación de Metformina para 5 segundos. Debería aparecer como notificación del sistema con botones.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo programar la notificación de medicamento real.');
+      }
+    } catch (error) {
+      console.error('[Perfil] Error al probar medicamento real:', error);
+      Alert.alert('Error', 'No se pudo probar la notificación de medicamento real');
     }
   };
 
@@ -438,6 +458,13 @@ export default function Perfil() {
           Envía una notificación inmediata con botones de acción
         </Text>
         
+        <TouchableOpacity style={[s.testButton, s.realButton]} onPress={handleRealMedicationTest}>
+          <Text style={s.testButtonText}>💊 Prueba medicamento real</Text>
+        </TouchableOpacity>
+        <Text style={s.testDescription}>
+          Simula notificación real de Metformina en 5 segundos
+        </Text>
+        
         <TouchableOpacity style={[s.testButton, s.scheduledButton]} onPress={handleTestNotification}>
           <Text style={s.testButtonText}>⏰ Prueba programada</Text>
         </TouchableOpacity>
@@ -536,6 +563,10 @@ const s = StyleSheet.create({
   },
   buttonsButton: {
     backgroundColor: '#8B5CF6',
+    marginTop: 12,
+  },
+  realButton: {
+    backgroundColor: '#EF4444',
     marginTop: 12,
   },
   scheduledButton: {
