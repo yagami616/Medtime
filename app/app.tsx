@@ -56,24 +56,20 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('[App] Notificación recibida:', notification);
       console.log('[App] Estado de la app:', AppState.currentState);
       
-      // Si es una notificación de medicamento con modal, mostrar el modal SOLO si la app está activa
+      // Si es una notificación de medicamento con modal, SIEMPRE mostrar el modal
       if (notification.request.content.data?.showModal && 
           notification.request.content.data?.medicationId) {
         
-        if (AppState.currentState === 'active') {
-          console.log('[App] App activa - mostrando modal de alarma');
-          setAlarmModal({
-            visible: true,
-            medication: {
-              id: notification.request.content.data.medicationId,
-              name: notification.request.content.data.medicationName,
-              dose: notification.request.content.data.dose,
-              scheduledTime: notification.request.content.data.scheduledTime,
-            }
-          });
-        } else {
-          console.log('[App] App en segundo plano - notificación del sistema se mostrará automáticamente');
-        }
+        console.log('[App] Mostrando modal de alarma (sin importar estado de la app)');
+        setAlarmModal({
+          visible: true,
+          medication: {
+            id: notification.request.content.data.medicationId,
+            name: notification.request.content.data.medicationName,
+            dose: notification.request.content.data.dose,
+            scheduledTime: notification.request.content.data.scheduledTime,
+          }
+        });
       } else if (!notification.request.content.data?.showModal) {
         // Solo mostrar alert para notificaciones que no son de medicamentos
         Alert.alert(
@@ -84,11 +80,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    // Configurar listener para respuestas de notificaciones interactivas
-    const responseListener = addNotificationResponseListener((response) => {
-      console.log('[App] Respuesta de notificación recibida:', response);
-      handleNotificationResponse(response);
-    });
+    // No necesitamos listener de respuestas ya que solo usamos modal
 
     supabase.auth.getSession().then(({ data }) => {
       const s = data.session;
@@ -123,7 +115,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       sub.subscription.unsubscribe();
       notificationListener.remove();
-      responseListener.remove();
     };
   }, []);
 

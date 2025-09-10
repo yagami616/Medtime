@@ -17,15 +17,15 @@ export function setAlarmModalCallback(callback: (medication: any) => void) {
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    // Si es una notificación de medicamento, mostrar notificación del sistema
-    // para que funcione cuando la app está cerrada o en segundo plano
+    // Si es una notificación de medicamento, NO mostrar nada del sistema
+    // Solo activar el modal cuando la app esté en primer plano
     if (notification.request.content.data?.showModal) {
       return {
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
       };
     }
     
@@ -741,25 +741,25 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
     console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Configurar notificación híbrida (modal cuando app abierta, notificación cuando cerrada)
+    // Configurar notificación que solo activa el modal (sin mostrar notificación del sistema)
     const notificationRequest = {
       identifier: notificationId,
       content: {
         title: '🚨 ¡Hora de medicamento!',
         body: `Es hora de tomar ${medication.name} (${medication.dose})`,
-        sound: 'default', // Sonido del sistema para cuando app está cerrada
+        sound: false, // No sonido del sistema
         data: {
           medicationId: medication.id,
           medicationName: medication.name,
           dose: medication.dose,
           scheduledTime: scheduledTime,
           isAlarm: true,
-          showModal: true, // Indicar que debe mostrar modal si app está abierta
+          showModal: true, // Indicar que debe mostrar modal
         },
         categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
-          vibrate: [0, 1000, 500, 1000, 500, 1000], // Vibración del sistema
+          vibrate: false, // No vibración del sistema
         }),
       },
       trigger: {
