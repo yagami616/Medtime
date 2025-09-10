@@ -72,3 +72,33 @@ export function historyToCSV(rows: HistoryEntry[]) {
   });
   return [header, ...lines].join("\n");
 }
+
+// Función para agregar entrada de historial desde el modal de alarma
+export async function addToHistory(entry: {
+  id: string;
+  name: string;
+  dose: string;
+  at: string;
+  status: HistoryStatus;
+  scheduledTimes: string[];
+}): Promise<void> {
+  try {
+    const historyEntry: HistoryEntry = {
+      id: entry.id,
+      medId: entry.id, // Usar el mismo ID como medId
+      name: entry.name,
+      dose: entry.dose,
+      scheduledTimes: entry.scheduledTimes,
+      status: entry.status,
+      at: entry.at,
+    };
+    
+    const list = await getHistory();
+    list.unshift(historyEntry);
+    await AsyncStorage.setItem(KEY, JSON.stringify(list));
+    console.log('[History] Entrada agregada:', historyEntry);
+  } catch (error) {
+    console.error('[History] Error al agregar entrada:', error);
+    throw error;
+  }
+}

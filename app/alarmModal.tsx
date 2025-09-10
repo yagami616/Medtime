@@ -73,6 +73,8 @@ export default function AlarmModal({
     if (!medication) return;
     
     try {
+      console.log('[AlarmModal] Marcando medicamento como tomado:', medication);
+      
       // Marcar como tomado en el historial
       await addToHistory({
         id: Date.now().toString(),
@@ -89,7 +91,7 @@ export default function AlarmModal({
       Alert.alert('✅ Medicamento Tomado', `${medication.name} registrado correctamente.`);
     } catch (error) {
       console.error('Error al marcar medicamento como tomado:', error);
-      Alert.alert('Error', 'No se pudo registrar la toma del medicamento.');
+      Alert.alert('Error', `No se pudo registrar la toma del medicamento: ${error.message || error}`);
     }
   };
 
@@ -120,6 +122,8 @@ export default function AlarmModal({
     if (!medication) return;
     
     try {
+      console.log('[AlarmModal] Cancelando medicamento:', medication);
+      
       // Marcar como cancelado en el historial
       await addToHistory({
         id: Date.now().toString(),
@@ -136,7 +140,7 @@ export default function AlarmModal({
       Alert.alert('❌ Cancelado', `${medication.name} cancelado.`);
     } catch (error) {
       console.error('Error al cancelar medicamento:', error);
-      Alert.alert('Error', 'No se pudo cancelar el medicamento.');
+      Alert.alert('Error', `No se pudo cancelar el medicamento: ${error.message || error}`);
     }
   };
 

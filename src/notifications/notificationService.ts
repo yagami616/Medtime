@@ -673,6 +673,12 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
 
     const now = new Date();
     
+    // Validar que scheduledTime existe
+    if (!scheduledTime) {
+      console.error('[NotificationService] scheduledTime es undefined');
+      return null;
+    }
+    
     // Parsear la hora programada
     let hours, minutes;
     
