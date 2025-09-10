@@ -23,7 +23,7 @@ import {
   findMedicineById,
 } from "../src/storage/localMedicines";
 import { loadMedicationsCatalog, initializeMedicationsCatalog, searchMedications, SupabaseMedication } from "../src/storage/supabaseMedications";
-import { scheduleAllMedicationNotifications, cancelAllMedicationNotifications } from "../src/notifications/notificationService";
+import { scheduleReminderNotifications, cancelAllMedicationNotifications } from "../src/notifications/notificationService";
 import { useAuth } from "./app";
 
 /** 🎛️ KNOBS */
@@ -220,16 +220,23 @@ export default function AddOrEditMedicineScreen() {
 
       await saveMedicineLocally(item);
 
-      // Programar notificaciones para el medicamento
-      const notificationIds = await scheduleAllMedicationNotifications(item);
+      // Programar notificaciones con botones para el medicamento
+      let totalNotifications = 0;
+      for (const scheduledTime of item.times) {
+        const notificationIds = await scheduleReminderNotifications(item, scheduledTime);
+        totalNotifications += notificationIds.length;
+      }
       
-      if (notificationIds.length > 0) {
+      if (totalNotifications > 0) {
         Alert.alert(
           isEditing ? "Actualizado" : "Guardado", 
-          `Medicamento guardado correctamente.\n\nSe programaron ${notificationIds.length} recordatorios.`
+          `Medicamento guardado correctamente.\n\nSe programaron ${totalNotifications} recordatorios con botones de acción.`
         );
       } else {
-        Alert.alert(isEditing ? "Actualizado" : "Guardado", "Medicamento guardado correctamente.");
+        Alert.alert(
+          isEditing ? "Actualizado" : "Guardado", 
+          "Medicamento guardado correctamente.\n\n⚠️ No se pudieron programar recordatorios. Revisa los permisos de notificación."
+        );
       }
 
       // Si quieres volver a la lista al guardar:

@@ -273,14 +273,6 @@ export default function HistorialScreen() {
         </View>
       </View>
 
-      {/* Indicador de fuente de datos */}
-      {user?.mode === "user" && (
-        <View style={s.dataSourceIndicator}>
-          <Text style={s.dataSourceText}>
-            {useSupabase ? "📡 Datos de Supabase" : "📱 Datos locales"}
-          </Text>
-        </View>
-      )}
 
       {loading ? (
         <Text style={{ color: "#666" }}>Cargando…</Text>
@@ -309,21 +301,6 @@ const s = StyleSheet.create({
   orderBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: "#f3f4f6" },
   orderBtnText: { fontWeight: "800", color: "#111" },
 
-  dataSourceIndicator: { 
-    backgroundColor: "#f0f9ff", 
-    paddingHorizontal: 12, 
-    paddingVertical: 8, 
-    borderRadius: 8, 
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: "#e0f2fe"
-  },
-  dataSourceText: { 
-    color: "#0369a1", 
-    fontSize: 14, 
-    fontWeight: "600", 
-    textAlign: "center" 
-  },
 
   card: { borderWidth: 1, borderRadius: UI.CARD_RADIUS, padding: 12, backgroundColor: "#fff" },
   rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

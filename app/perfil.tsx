@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
-import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, sendImmediateTestNotificationWithButtons, scheduleRealMedicationTest, diagnoseNotificationSystem } from '../src/notifications/notificationService';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
 
 type AuthInfo = {
@@ -119,109 +118,6 @@ export default function Perfil() {
     setIsEditing(false);
   };
 
-  const handleTestNotification = async () => {
-    try {
-      // Primero verificar notificaciones existentes
-      await checkScheduledNotifications();
-      
-      const testId = await scheduleTestNotification();
-      if (testId) {
-        Alert.alert(
-          'Prueba de notificación', 
-          'Se programó una notificación de prueba que sonará en 5 segundos. Si no la ves, revisa la configuración de notificaciones.',
-          [
-            { text: 'OK' },
-            { 
-              text: 'Ver notificaciones programadas', 
-              onPress: async () => {
-                await checkScheduledNotifications();
-                Alert.alert('Info', 'Revisa la consola para ver las notificaciones programadas');
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo programar la notificación de prueba. Revisa los permisos.');
-      }
-    } catch (error) {
-      console.error('[Perfil] Error al probar notificación:', error);
-      Alert.alert('Error', 'No se pudo probar la notificación');
-    }
-  };
-
-  const handleImmediateTestNotification = async () => {
-    try {
-      console.log('[Perfil] Probando notificación inmediata...');
-      const success = await sendImmediateTestNotification();
-      
-      if (success) {
-        Alert.alert(
-          'Prueba inmediata', 
-          'Se envió una notificación inmediata. Si no la ves, revisa la configuración de notificaciones.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo enviar la notificación inmediata. Revisa los permisos.');
-      }
-    } catch (error) {
-      console.error('[Perfil] Error al probar notificación inmediata:', error);
-      Alert.alert('Error', 'No se pudo probar la notificación inmediata');
-    }
-  };
-
-  const handleImmediateTestNotificationWithButtons = async () => {
-    try {
-      console.log('[Perfil] Probando notificación inmediata con botones...');
-      const success = await sendImmediateTestNotificationWithButtons();
-      
-      if (success) {
-        Alert.alert(
-          'Prueba con botones', 
-          'Se envió una notificación inmediata con botones de acción. Deberías ver los botones: Tomar, Aplazar, Cancelar.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo enviar la notificación con botones. Revisa los permisos.');
-      }
-    } catch (error) {
-      console.error('[Perfil] Error al probar notificación con botones:', error);
-      Alert.alert('Error', 'No se pudo probar la notificación con botones');
-    }
-  };
-
-  const handleRealMedicationTest = async () => {
-    try {
-      console.log('[Perfil] Probando notificación de medicamento real...');
-      const testId = await scheduleRealMedicationTest();
-      
-      if (testId) {
-        Alert.alert(
-          'Prueba de medicamento real', 
-          'Se programó una notificación de Metformina para 5 segundos. Debería aparecer como notificación del sistema con botones.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Error', 'No se pudo programar la notificación de medicamento real.');
-      }
-    } catch (error) {
-      console.error('[Perfil] Error al probar medicamento real:', error);
-      Alert.alert('Error', 'No se pudo probar la notificación de medicamento real');
-    }
-  };
-
-  const handleDiagnoseNotifications = async () => {
-    try {
-      await diagnoseNotificationSystem();
-      Alert.alert(
-        'Diagnóstico completado', 
-        'Se ejecutó el diagnóstico completo. Revisa la consola para ver los detalles.',
-        [{ text: 'OK' }]
-      );
-    } catch (error) {
-      console.error('[Perfil] Error en diagnóstico:', error);
-      Alert.alert('Error', 'No se pudo ejecutar el diagnóstico');
-    }
-  };
 
   const handleToggleAlarm = async (setting: keyof AlarmSettings, value: any) => {
     if (!alarmSettings) return;
@@ -440,45 +336,6 @@ export default function Perfil() {
         </View>
       )}
 
-      {/* Sección de notificaciones */}
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>Notificaciones</Text>
-        
-        <TouchableOpacity style={s.testButton} onPress={handleImmediateTestNotification}>
-          <Text style={s.testButtonText}>⚡ Prueba inmediata</Text>
-        </TouchableOpacity>
-        <Text style={s.testDescription}>
-          Envía una notificación inmediata para probar
-        </Text>
-        
-        <TouchableOpacity style={[s.testButton, s.buttonsButton]} onPress={handleImmediateTestNotificationWithButtons}>
-          <Text style={s.testButtonText}>🔘 Prueba con botones</Text>
-        </TouchableOpacity>
-        <Text style={s.testDescription}>
-          Envía una notificación inmediata con botones de acción
-        </Text>
-        
-        <TouchableOpacity style={[s.testButton, s.realButton]} onPress={handleRealMedicationTest}>
-          <Text style={s.testButtonText}>💊 Prueba medicamento real</Text>
-        </TouchableOpacity>
-        <Text style={s.testDescription}>
-          Simula notificación real de Metformina en 5 segundos
-        </Text>
-        
-        <TouchableOpacity style={[s.testButton, s.scheduledButton]} onPress={handleTestNotification}>
-          <Text style={s.testButtonText}>⏰ Prueba programada</Text>
-        </TouchableOpacity>
-        <Text style={s.testDescription}>
-          Programa una notificación para 5 segundos después
-        </Text>
-        
-        <TouchableOpacity style={[s.testButton, s.diagnoseButton]} onPress={handleDiagnoseNotifications}>
-          <Text style={s.testButtonText}>🔍 Diagnóstico</Text>
-        </TouchableOpacity>
-        <Text style={s.testDescription}>
-          Ejecuta un diagnóstico completo del sistema
-        </Text>
-      </View>
 
       <View style={{ height: 20 }} />
       <Button title="Actualizar perfil" onPress={load} />
@@ -552,42 +409,6 @@ const s = StyleSheet.create({
   saveButton: { backgroundColor: '#007AFF' },
   saveButtonText: { color: '#fff', fontWeight: '600' },
 
-  // Botón de prueba
-  testButton: {
-    backgroundColor: '#34D399',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonsButton: {
-    backgroundColor: '#8B5CF6',
-    marginTop: 12,
-  },
-  realButton: {
-    backgroundColor: '#EF4444',
-    marginTop: 12,
-  },
-  scheduledButton: {
-    backgroundColor: '#3B82F6',
-    marginTop: 12,
-  },
-  diagnoseButton: {
-    backgroundColor: '#F59E0B',
-    marginTop: 12,
-  },
-  testButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  testDescription: {
-    color: '#666',
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-  },
 
   // Toggles
   toggleRow: {
