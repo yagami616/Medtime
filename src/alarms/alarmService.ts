@@ -1,6 +1,8 @@
 // src/alarms/alarmService.ts
 import { MedItem } from '../storage/localMedicines';
 import { loadAlarmSettings } from '../storage/alarmSettings';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 // Callback para mostrar el modal de alarma
 let showAlarmModal: ((medication: any) => void) | null = null;
@@ -89,27 +91,66 @@ export async function scheduleAlarm(medication: MedItem, scheduledTime: string):
     console.log(`[AlarmService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[AlarmService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Programar timer
-    const timer = setTimeout(() => {
-      console.log(`[AlarmService] 🚨 ALARMA ACTIVADA para ${medication.name}`);
-      
-      if (showAlarmModal) {
-        showAlarmModal({
-          id: medication.id,
-          name: medication.name,
-          dose: medication.dose,
-          scheduledTime: scheduledTime,
-        });
-      } else {
-        console.error('[AlarmService] No hay callback de modal registrado');
-      }
-      
-      // Remover el timer de la lista de activos
-      activeTimers.delete(alarmId);
-    }, triggerDate.getTime() - now.getTime());
+    // Para horarios muy cercanos (menos de 2 minutos), usar timer
+    // Para horarios más lejanos, usar notificación del sistema
+    const timeDiff = triggerDate.getTime() - now.getTime();
     
-    // Guardar el timer
-    activeTimers.set(alarmId, timer);
+    if (timeDiff < 2 * 60 * 1000) {
+      // Usar timer para horarios cercanos
+      const timer = setTimeout(() => {
+        console.log(`[AlarmService] 🚨 ALARMA ACTIVADA (timer) para ${medication.name}`);
+        
+        if (showAlarmModal) {
+          showAlarmModal({
+            id: medication.id,
+            name: medication.name,
+            dose: medication.dose,
+            scheduledTime: scheduledTime,
+          });
+        } else {
+          console.error('[AlarmService] No hay callback de modal registrado');
+        }
+        
+        // Remover el timer de la lista de activos
+        activeTimers.delete(alarmId);
+      }, timeDiff);
+      
+      // Guardar el timer
+      activeTimers.set(alarmId, timer);
+    } else {
+      // Usar notificación del sistema para horarios lejanos
+      try {
+        const notificationId = await Notifications.scheduleNotificationAsync({
+          identifier: alarmId,
+          content: {
+            title: '🚨 ¡Hora de medicamento!',
+            body: `Es hora de tomar ${medication.name} (${medication.dose})`,
+            sound: 'default',
+            data: {
+              medicationId: medication.id,
+              medicationName: medication.name,
+              dose: medication.dose,
+              scheduledTime: scheduledTime,
+              isAlarm: true,
+              showModal: true,
+            },
+            categoryIdentifier: 'MEDICATION_ALARM',
+            ...(Platform.OS === 'android' && {
+              channelId: 'medtime-reminders',
+              vibrate: [0, 1000, 500, 1000, 500, 1000],
+            }),
+          },
+          trigger: {
+            type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+          },
+        });
+        
+        console.log(`[AlarmService] Notificación programada: ${notificationId}`);
+      } catch (error) {
+        console.error('[AlarmService] Error al programar notificación:', error);
+      }
+    }
     
     console.log(`[AlarmService] ✅ Alarma programada para ${medication.name} a las ${triggerDate.toLocaleTimeString()}`);
     return alarmId;

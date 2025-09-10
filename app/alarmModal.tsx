@@ -91,8 +91,14 @@ export default function AlarmModal({
       };
       
       console.log('[AlarmModal] Agregando al historial:', historyEntry);
-      await addToHistory(historyEntry);
-      console.log('[AlarmModal] Historial actualizado correctamente');
+      try {
+        await addToHistory(historyEntry);
+        console.log('[AlarmModal] ✅ Historial actualizado correctamente');
+      } catch (error) {
+        console.error('[AlarmModal] ❌ Error al actualizar historial:', error);
+        Alert.alert('Error', 'No se pudo guardar en el historial');
+        return;
+      }
 
       onClose();
       
@@ -146,8 +152,14 @@ export default function AlarmModal({
       };
       
       console.log('[AlarmModal] Agregando al historial:', historyEntry);
-      await addToHistory(historyEntry);
-      console.log('[AlarmModal] Historial actualizado correctamente');
+      try {
+        await addToHistory(historyEntry);
+        console.log('[AlarmModal] ✅ Historial actualizado correctamente');
+      } catch (error) {
+        console.error('[AlarmModal] ❌ Error al actualizar historial:', error);
+        Alert.alert('Error', 'No se pudo guardar en el historial');
+        return;
+      }
 
       onClose();
       

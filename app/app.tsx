@@ -5,6 +5,7 @@ import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerI
 import * as WebBrowser from "expo-web-browser";
 import { View, Alert, Text } from "react-native";
 import { setAlarmModalCallback } from "../src/alarms/alarmService";
+import { addNotificationReceivedListener } from "../src/notifications/notificationService";
 
 import LoginScreen from "../app/login";
 import AddOrEdit from "../app/index";
@@ -45,6 +46,27 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
+    // Configurar listener para notificaciones del sistema
+    const notificationListener = addNotificationReceivedListener((notification) => {
+      console.log('[App] Notificación recibida:', notification);
+      
+      // Si es una notificación de medicamento, mostrar el modal
+      if (notification.request.content.data?.showModal && 
+          notification.request.content.data?.medicationId) {
+        
+        console.log('[App] Mostrando modal de alarma desde notificación');
+        setAlarmModal({
+          visible: true,
+          medication: {
+            id: notification.request.content.data.medicationId,
+            name: notification.request.content.data.medicationName,
+            dose: notification.request.content.data.dose,
+            scheduledTime: notification.request.content.data.scheduledTime,
+          }
+        });
+      }
+    });
+
     supabase.auth.getSession().then(({ data }) => {
       const s = data.session;
       if (s) setUser({ mode: "user", name: s.user?.user_metadata?.full_name });
@@ -77,6 +99,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       sub.subscription.unsubscribe();
+      notificationListener.remove();
     };
   }, []);
 

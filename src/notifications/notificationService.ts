@@ -17,15 +17,15 @@ export function setAlarmModalCallback(callback: (medication: any) => void) {
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    // Si es una notificación de medicamento, NO mostrar nada del sistema
-    // Solo activar el modal cuando la app esté en primer plano
+    // Si es una notificación de medicamento, mostrar notificación del sistema
+    // para que funcione cuando la app está en segundo plano
     if (notification.request.content.data?.showModal) {
       return {
-        shouldShowAlert: false,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: false,
-        shouldShowList: false,
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
       };
     }
     
