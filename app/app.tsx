@@ -130,7 +130,8 @@ function CustomDrawerContent(props: any) {
       <DrawerItemList {...props} />
       <View style={{ height: 8 }} />
       <DrawerItem
-        label={isGuest ? "Cambiar a Login" : "Cerrar sesión"}
+        label="Cerrar sesión"
+        labelStyle={{ color: '#d32f2f', fontWeight: 'bold' }}
         onPress={async () => {
           await signOut(); // RootNavigator mostrará Login automáticamente
         }}
