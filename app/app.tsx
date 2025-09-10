@@ -5,6 +5,7 @@ import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerI
 import * as WebBrowser from "expo-web-browser";
 import { View, Alert, Text } from "react-native";
 import { requestNotificationPermissions, addNotificationReceivedListener, addNotificationResponseListener, handleNotificationResponse } from "../src/notifications/notificationService";
+import { AppState } from 'react-native';
 
 import LoginScreen from "../app/login";
 import AddOrEdit from "../app/index";
@@ -53,20 +54,26 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener para notificaciones recibidas
     const notificationListener = addNotificationReceivedListener((notification) => {
       console.log('[App] Notificación recibida:', notification);
+      console.log('[App] Estado de la app:', AppState.currentState);
       
-      // Si es una notificación de medicamento con modal, mostrar el modal
+      // Si es una notificación de medicamento con modal, mostrar el modal SOLO si la app está activa
       if (notification.request.content.data?.showModal && 
           notification.request.content.data?.medicationId) {
-        console.log('[App] Mostrando modal de alarma para medicamento');
-        setAlarmModal({
-          visible: true,
-          medication: {
-            id: notification.request.content.data.medicationId,
-            name: notification.request.content.data.medicationName,
-            dose: notification.request.content.data.dose,
-            scheduledTime: notification.request.content.data.scheduledTime,
-          }
-        });
+        
+        if (AppState.currentState === 'active') {
+          console.log('[App] App activa - mostrando modal de alarma');
+          setAlarmModal({
+            visible: true,
+            medication: {
+              id: notification.request.content.data.medicationId,
+              name: notification.request.content.data.medicationName,
+              dose: notification.request.content.data.dose,
+              scheduledTime: notification.request.content.data.scheduledTime,
+            }
+          });
+        } else {
+          console.log('[App] App en segundo plano - notificación del sistema se mostrará automáticamente');
+        }
       } else if (!notification.request.content.data?.showModal) {
         // Solo mostrar alert para notificaciones que no son de medicamentos
         Alert.alert(

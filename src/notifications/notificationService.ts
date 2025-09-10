@@ -17,14 +17,15 @@ export function setAlarmModalCallback(callback: (medication: any) => void) {
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    // Si es una notificación de medicamento, no mostrar nada del sistema
+    // Si es una notificación de medicamento, mostrar notificación del sistema
+    // para que funcione cuando la app está cerrada o en segundo plano
     if (notification.request.content.data?.showModal) {
       return {
-        shouldShowAlert: false,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: false,
-        shouldShowList: false,
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
       };
     }
     
@@ -740,25 +741,25 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
     console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Configurar notificación que activará el modal
+    // Configurar notificación híbrida (modal cuando app abierta, notificación cuando cerrada)
     const notificationRequest = {
       identifier: notificationId,
       content: {
-        title: '🔔 ¡Hora de medicamento!',
+        title: '🚨 ¡Hora de medicamento!',
         body: `Es hora de tomar ${medication.name} (${medication.dose})`,
-        sound: false, // No sonido del sistema
+        sound: 'default', // Sonido del sistema para cuando app está cerrada
         data: {
           medicationId: medication.id,
           medicationName: medication.name,
           dose: medication.dose,
           scheduledTime: scheduledTime,
           isAlarm: true,
-          showModal: true, // Indicar que debe mostrar modal
+          showModal: true, // Indicar que debe mostrar modal si app está abierta
         },
         categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
-          vibrate: false, // No vibración del sistema
+          vibrate: [0, 1000, 500, 1000, 500, 1000], // Vibración del sistema
         }),
       },
       trigger: {
@@ -956,19 +957,20 @@ async function handleTakeMedication(data: any): Promise<void> {
   try {
     console.log('[NotificationService] ✅ Medicamento tomado:', data?.medicationName);
     
-    // Aquí podrías registrar en el historial que se tomó el medicamento
-    // Por ahora solo mostramos un log
-    console.log('[NotificationService] Registrando toma de medicamento en historial...');
+    // Importar la función de historial
+    const { addToHistory } = await import('../storage/history');
     
-    // TODO: Implementar registro en historial
-    // await addToHistory({
-    //   medicationId: data.medicationId,
-    //   medicationName: data.medicationName,
-    //   dose: data.dose,
-    //   takenAt: new Date().toISOString(),
-    //   status: 'taken'
-    // });
+    // Agregar al historial
+    await addToHistory({
+      id: Date.now().toString(),
+      name: data.medicationName || 'Medicamento',
+      dose: data.dose || 'N/A',
+      at: new Date().toISOString(),
+      status: 'Tomado',
+      scheduledTimes: [data.scheduledTime || new Date().toISOString()],
+    });
     
+    console.log('[NotificationService] ✅ Medicamento marcado como tomado y agregado al historial');
   } catch (error) {
     console.error('[NotificationService] Error al registrar toma de medicamento:', error);
   }
@@ -1022,6 +1024,19 @@ async function handleCancelMedication(data: any): Promise<void> {
   try {
     console.log('[NotificationService] ❌ Medicamento cancelado:', data?.medicationName);
     
+    // Importar la función de historial
+    const { addToHistory } = await import('../storage/history');
+    
+    // Agregar al historial como cancelado
+    await addToHistory({
+      id: Date.now().toString(),
+      name: data.medicationName || 'Medicamento',
+      dose: data.dose || 'N/A',
+      at: new Date().toISOString(),
+      status: 'Cancelado',
+      scheduledTimes: [data.scheduledTime || new Date().toISOString()],
+    });
+    
     // Cancelar todas las notificaciones relacionadas con este medicamento
     const scheduled = await Notifications.getAllScheduledNotificationsAsync();
     const idsToCancel = scheduled
@@ -1033,7 +1048,7 @@ async function handleCancelMedication(data: any): Promise<void> {
       console.log('[NotificationService] Notificación cancelada:', id);
     }
     
-    console.log('[NotificationService] ✅ Todas las notificaciones del medicamento canceladas');
+    console.log('[NotificationService] ✅ Medicamento cancelado y agregado al historial');
     
   } catch (error) {
     console.error('[NotificationService] Error al cancelar medicamento:', error);
