@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from "@react-navigation/drawer";
 import * as WebBrowser from "expo-web-browser";
-import { View, Alert } from "react-native";
+import { View, Alert, Text } from "react-native";
 import { requestNotificationPermissions, addNotificationReceivedListener } from "../src/notifications/notificationService";
 
 import LoginScreen from "../app/login";
@@ -100,14 +100,27 @@ const Drawer = createDrawerNavigator();
 
 /** Drawer personalizado con botón "Cerrar sesión" al final */
 function CustomDrawerContent(props: any) {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
+  const isGuest = user?.mode === "guest";
 
   return (
     <DrawerContentScrollView {...props}>
+      {/* Mostrar estado del usuario */}
+      <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
+        <Text style={{ fontSize: 16, fontWeight: 'bold', color: isGuest ? '#ff9800' : '#4caf50' }}>
+          {isGuest ? '👤 Modo Invitado' : '✅ Usuario Autenticado'}
+        </Text>
+        {!isGuest && user?.name && (
+          <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
+            {user.name}
+          </Text>
+        )}
+      </View>
+      
       <DrawerItemList {...props} />
       <View style={{ height: 8 }} />
       <DrawerItem
-        label="Cerrar sesión"
+        label={isGuest ? "Cambiar a Login" : "Cerrar sesión"}
         onPress={async () => {
           await signOut(); // RootNavigator mostrará Login automáticamente
         }}
@@ -121,14 +134,17 @@ function RootNavigator() {
 
   if (!user) return <LoginScreen />;
 
+  // Para usuarios invitados, solo mostrar Agregar medicamento y Perfil
+  const isGuest = user.mode === "guest";
+
   return (
     <Drawer.Navigator
       initialRouteName="Agregar medicamento"
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       <Drawer.Screen name="Agregar medicamento" component={AddOrEdit} />
-      <Drawer.Screen name="Lista" component={Lista} />
-      <Drawer.Screen name="Historial" component={Historial} />
+      {!isGuest && <Drawer.Screen name="Lista" component={Lista} />}
+      {!isGuest && <Drawer.Screen name="Historial" component={Historial} />}
       <Drawer.Screen name="Perfil" component={Perfil} />
     </Drawer.Navigator>
   );
