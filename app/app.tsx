@@ -64,14 +64,24 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log("[Auth] onAuthStateChange:", event);
       if (session) {
         setUser({ mode: "user", name: session.user?.user_metadata?.full_name });
-        // Opcional: resetear al agregar medicamento
-        if (navigationRef.isReady()) {
-          navigationRef.reset({ index: 0, routes: [{ name: "Agregar medicamento" as const }] });
+        // Solo resetear si hay un navegador activo y no es el estado inicial
+        if (navigationRef.isReady() && event !== 'INITIAL_SESSION') {
+          setTimeout(() => {
+            if (navigationRef.isReady()) {
+              navigationRef.reset({ index: 0, routes: [{ name: "Agregar medicamento" as const }] });
+            }
+          }, 100);
         }
       } else {
         setUser(null);
-        // Opcional: limpiar navegación para que no vuelva atrás
-        if (navigationRef.isReady()) navigationRef.reset({ index: 0, routes: [] });
+        // Solo limpiar navegación si no es el estado inicial
+        if (navigationRef.isReady() && event !== 'INITIAL_SESSION') {
+          setTimeout(() => {
+            if (navigationRef.isReady()) {
+              navigationRef.reset({ index: 0, routes: [] });
+            }
+          }, 100);
+        }
       }
     });
 
