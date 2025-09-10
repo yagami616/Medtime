@@ -145,7 +145,7 @@ function RootNavigator() {
 
   if (!user) return <LoginScreen />;
 
-  // Para usuarios invitados, solo mostrar Agregar medicamento y Perfil
+  // Para usuarios invitados, solo mostrar Agregar medicamento y Lista
   const isGuest = user.mode === "guest";
 
   return (
@@ -154,9 +154,9 @@ function RootNavigator() {
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
       <Drawer.Screen name="Agregar medicamento" component={AddOrEdit} />
-      {!isGuest && <Drawer.Screen name="Lista" component={Lista} />}
+      <Drawer.Screen name="Lista" component={Lista} />
       {!isGuest && <Drawer.Screen name="Historial" component={Historial} />}
-      <Drawer.Screen name="Perfil" component={Perfil} />
+      {!isGuest && <Drawer.Screen name="Perfil" component={Perfil} />}
     </Drawer.Navigator>
   );
 }
