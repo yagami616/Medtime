@@ -16,13 +16,27 @@ export function setAlarmModalCallback(callback: (medication: any) => void) {
 
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false, // No mostrar alert del sistema
-    shouldPlaySound: false, // No reproducir sonido del sistema
-    shouldSetBadge: false,
-    shouldShowBanner: false, // No mostrar banner del sistema
-    shouldShowList: false, // No mostrar en lista del sistema
-  }),
+  handleNotification: async (notification) => {
+    // Si es una notificación de medicamento, no mostrar nada del sistema
+    if (notification.request.content.data?.showModal) {
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: false,
+        shouldShowList: false,
+      };
+    }
+    
+    // Para otras notificaciones, mostrar normalmente
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    };
+  },
 });
 
 // Configurar categorías de notificación con botones de acción
@@ -697,6 +711,13 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
       triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     }
     
+    // Para pruebas: si es muy cercano (menos de 5 minutos), programar para 10 segundos después
+    const timeDiff = triggerDate.getTime() - now.getTime();
+    if (timeDiff < 5 * 60 * 1000 && timeDiff > 0) {
+      console.log('[NotificationService] Hora muy cercana, programando para 10 segundos después');
+      triggerDate = new Date(now.getTime() + 10 * 1000);
+    }
+    
     // Asegurar que la fecha sea al menos 2 segundos en el futuro (máxima precisión)
     const minFutureTime = new Date(now.getTime() + 2 * 1000);
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
@@ -866,6 +887,59 @@ export function handleNotificationResponse(response: Notifications.NotificationR
       break;
     default:
       console.log('[NotificationService] Acción no reconocida:', actionIdentifier);
+  }
+}
+
+/**
+ * Función de prueba para programar notificación inmediata
+ */
+export async function scheduleTestNotificationImmediate(): Promise<string | null> {
+  try {
+    console.log('[NotificationService] Programando notificación de prueba inmediata');
+    
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      console.log('[NotificationService] No se pueden programar notificaciones sin permisos');
+      return null;
+    }
+
+    const now = new Date();
+    const triggerDate = new Date(now.getTime() + 5 * 1000); // 5 segundos después
+    
+    const notificationId = `test_immediate_${Date.now()}`;
+    
+    const notificationRequest = {
+      identifier: notificationId,
+      content: {
+        title: '🔔 ¡Hora de medicamento!',
+        body: 'Es hora de tomar Paracetamol (500 mg)',
+        sound: false,
+        data: {
+          medicationId: 'test',
+          medicationName: 'Paracetamol',
+          dose: '500 mg',
+          scheduledTime: triggerDate.toISOString(),
+          isAlarm: true,
+          showModal: true,
+        },
+        categoryIdentifier: 'MEDICATION_ALARM',
+        ...(Platform.OS === 'android' && {
+          channelId: 'medtime-reminders',
+          vibrate: false,
+        }),
+      },
+      trigger: {
+        type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+      },
+    };
+
+    await Notifications.scheduleNotificationAsync(notificationRequest);
+    console.log(`[NotificationService] ✅ Notificación de prueba programada para ${triggerDate.toLocaleTimeString()}`);
+    return notificationId;
+  } catch (error) {
+    console.error('[NotificationService] Error al programar notificación de prueba:', error);
+    return null;
   }
 }
 

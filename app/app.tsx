@@ -67,8 +67,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
             scheduledTime: notification.request.content.data.scheduledTime,
           }
         });
-      } else if (!notification.request.content.categoryIdentifier && 
-                 !notification.request.content.data?.medicationId) {
+      } else if (!notification.request.content.data?.showModal) {
         // Solo mostrar alert para notificaciones que no son de medicamentos
         Alert.alert(
           notification.request.content.title || 'Notificación',
