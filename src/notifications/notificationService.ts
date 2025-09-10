@@ -5,7 +5,6 @@ import Constants from 'expo-constants';
 import { Platform, AppState } from 'react-native';
 import { MedItem } from '../storage/localMedicines';
 import { loadAlarmSettings, AlarmSettings } from '../storage/alarmSettings';
-import { Audio } from 'expo-av';
 
 // Variable global para el modal de alarma
 let showAlarmModal: ((medication: any) => void) | null = null;

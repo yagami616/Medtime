@@ -10,7 +10,6 @@ import {
   Vibration,
   Dimensions,
 } from 'react-native';
-import { Audio } from 'expo-av';
 import { useAuth } from './app';
 import { addToHistory } from '../src/storage/history';
 import { scheduleMedicationNotificationWithAlarm } from '../src/notifications/notificationService';
@@ -34,43 +33,39 @@ export default function AlarmModal({
   onClose,
 }: AlarmModalProps) {
   const { user } = useAuth();
-  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     if (visible && medication) {
       playAlarmSound();
       // Vibrar continuamente mientras el modal esté abierto
       const vibrationInterval = setInterval(() => {
-        Vibration.vibrate(1000);
-      }, 2000);
+        Vibration.vibrate([0, 1000, 500, 1000]);
+      }, 3000);
 
       return () => {
         clearInterval(vibrationInterval);
+        Vibration.cancel();
       };
     }
   }, [visible, medication]);
 
   const playAlarmSound = async () => {
     try {
-      // Crear un tono de alarma simple usando Audio
-      const { sound } = await Audio.Sound.createAsync(
-        // Usar un tono de alarma más agresivo
-        { uri: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.wav' },
-        { shouldPlay: true, isLooping: true, volume: 1.0 }
-      );
-      soundRef.current = sound;
+      // Usar vibración agresiva como alarma
+      console.log('[AlarmModal] Iniciando alarma con vibración');
+      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000, 500, 1000]);
     } catch (error) {
       console.error('Error playing alarm sound:', error);
-      // Fallback: vibrar más agresivamente
-      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000]);
     }
   };
 
   const stopAlarm = async () => {
-    if (soundRef.current) {
-      await soundRef.current.stopAsync();
-      await soundRef.current.unloadAsync();
-      soundRef.current = null;
+    try {
+      // Detener vibración
+      Vibration.cancel();
+      console.log('[AlarmModal] Alarma detenida');
+    } catch (error) {
+      console.error('Error stopping alarm:', error);
     }
   };
 
