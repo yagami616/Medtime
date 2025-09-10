@@ -4,6 +4,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { MedItem } from '../storage/localMedicines';
+import { loadAlarmSettings, AlarmSettings } from '../storage/alarmSettings';
 
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
@@ -84,7 +85,7 @@ export async function requestNotificationPermissions(): Promise<boolean> {
 }
 
 /**
- * Programa una notificación para un medicamento
+ * Programa una notificación precisa para un medicamento
  */
 export async function scheduleMedicationNotification(medication: MedItem, scheduledTime: string): Promise<string | null> {
   try {
@@ -139,10 +140,10 @@ export async function scheduleMedicationNotification(medication: MedItem, schedu
       triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000); // +1 día
     }
     
-    // Asegurar que la fecha sea al menos 1 minuto en el futuro
-    const minFutureTime = new Date(now.getTime() + 60 * 1000); // +1 minuto
+    // Asegurar que la fecha sea al menos 10 segundos en el futuro (más preciso)
+    const minFutureTime = new Date(now.getTime() + 10 * 1000); // +10 segundos
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
-      console.log('[NotificationService] Ajustando fecha para que sea al menos 1 minuto en el futuro');
+      console.log('[NotificationService] Ajustando fecha para que sea al menos 10 segundos en el futuro');
       triggerDate = minFutureTime;
     }
     
@@ -455,5 +456,207 @@ export async function scheduleTestNotification(): Promise<string | null> {
   } catch (error) {
     console.error('[NotificationService] Error al programar notificación de prueba:', error);
     return null;
+  }
+}
+
+/**
+ * Programa una notificación con configuración de alarma
+ */
+export async function scheduleMedicationNotificationWithAlarm(medication: MedItem, scheduledTime: string): Promise<string | null> {
+  try {
+    console.log(`[NotificationService] Programando notificación con alarma para ${medication.name} a las ${scheduledTime}`);
+    
+    const alarmSettings = await loadAlarmSettings();
+    
+    // Si las alarmas están deshabilitadas, no programar
+    if (!alarmSettings.enabled) {
+      console.log('[NotificationService] Alarmas deshabilitadas, no se programará notificación');
+      return null;
+    }
+    
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      console.log('[NotificationService] No se pueden programar notificaciones sin permisos');
+      return null;
+    }
+
+    const now = new Date();
+    
+    // Parsear la hora programada
+    let hours, minutes;
+    
+    if (scheduledTime.includes('T')) {
+      const date = new Date(scheduledTime);
+      if (isNaN(date.getTime())) {
+        console.error('[NotificationService] Fecha ISO inválida:', scheduledTime);
+        return null;
+      }
+      hours = date.getHours();
+      minutes = date.getMinutes();
+    } else {
+      const timeParts = scheduledTime.split(':');
+      if (timeParts.length !== 2) {
+        console.error('[NotificationService] Formato de hora inválido:', scheduledTime);
+        return null;
+      }
+      hours = parseInt(timeParts[0], 10);
+      minutes = parseInt(timeParts[1], 10);
+    }
+    
+    // Validar hora
+    if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+      console.error('[NotificationService] Hora inválida:', scheduledTime);
+      return null;
+    }
+    
+    // Crear fecha para hoy con la hora programada
+    const today = new Date();
+    today.setHours(hours, minutes, 0, 0);
+    
+    // Si la hora ya pasó hoy, programar para mañana
+    let triggerDate = new Date(today);
+    if (today.getTime() <= now.getTime()) {
+      console.log('[NotificationService] La hora ya pasó hoy, programando para mañana');
+      triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
+    }
+    
+    // Asegurar que la fecha sea al menos 5 segundos en el futuro
+    const minFutureTime = new Date(now.getTime() + 5 * 1000);
+    if (triggerDate.getTime() <= minFutureTime.getTime()) {
+      triggerDate = minFutureTime;
+    }
+    
+    if (isNaN(triggerDate.getTime())) {
+      console.error('[NotificationService] Fecha inválida generada:', triggerDate);
+      return null;
+    }
+    
+    const notificationId = `${medication.id}_alarm_${scheduledTime}_${triggerDate.getTime()}`;
+    
+    console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
+    console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
+    
+    // Configurar notificación con configuración de alarma
+    const notificationRequest = {
+      identifier: notificationId,
+      content: {
+        title: '🔔 ¡Hora de medicamento!',
+        body: `Es hora de tomar ${medication.name} (${medication.dose})`,
+        sound: alarmSettings.soundEnabled ? 'default' : null,
+        data: {
+          medicationId: medication.id,
+          medicationName: medication.name,
+          dose: medication.dose,
+          scheduledTime: scheduledTime,
+          isAlarm: true,
+        },
+        ...(Platform.OS === 'android' && {
+          channelId: 'medtime-reminders',
+          vibrate: alarmSettings.vibrationEnabled ? [0, 250, 250, 250] : undefined,
+        }),
+      },
+      trigger: {
+        type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
+      },
+    };
+
+    await Notifications.scheduleNotificationAsync(notificationRequest);
+
+    console.log(`[NotificationService] ✅ Notificación con alarma programada para ${medication.name} a las ${triggerDate.toLocaleTimeString()}`);
+    return notificationId;
+  } catch (error) {
+    console.error('[NotificationService] Error al programar notificación con alarma:', error);
+    return null;
+  }
+}
+
+/**
+ * Programa notificaciones de recordatorio basadas en la configuración
+ */
+export async function scheduleReminderNotifications(medication: MedItem, scheduledTime: string): Promise<string[]> {
+  try {
+    const alarmSettings = await loadAlarmSettings();
+    const notificationIds: string[] = [];
+    
+    if (!alarmSettings.enabled) {
+      console.log('[NotificationService] Alarmas deshabilitadas, no se programarán recordatorios');
+      return [];
+    }
+    
+    // Programar notificación principal
+    const mainId = await scheduleMedicationNotificationWithAlarm(medication, scheduledTime);
+    if (mainId) {
+      notificationIds.push(mainId);
+    }
+    
+    // Programar recordatorios adicionales si está configurado
+    if (alarmSettings.reminderInterval > 0) {
+      const now = new Date();
+      let hours, minutes;
+      
+      if (scheduledTime.includes('T')) {
+        const date = new Date(scheduledTime);
+        hours = date.getHours();
+        minutes = date.getMinutes();
+      } else {
+        const timeParts = scheduledTime.split(':');
+        hours = parseInt(timeParts[0], 10);
+        minutes = parseInt(timeParts[1], 10);
+      }
+      
+      const scheduledDate = new Date();
+      scheduledDate.setHours(hours, minutes, 0, 0);
+      
+      // Si la hora ya pasó hoy, programar para mañana
+      if (scheduledDate.getTime() <= now.getTime()) {
+        scheduledDate.setTime(scheduledDate.getTime() + 24 * 60 * 60 * 1000);
+      }
+      
+      // Programar recordatorios cada X minutos después de la hora programada
+      for (let i = 1; i <= 3; i++) { // Máximo 3 recordatorios
+        const reminderTime = new Date(scheduledDate.getTime() + (alarmSettings.reminderInterval * i * 60 * 1000));
+        
+        // Solo programar si es en el futuro
+        if (reminderTime.getTime() > now.getTime()) {
+          const reminderId = `${medication.id}_reminder_${i}_${scheduledTime}_${reminderTime.getTime()}`;
+          
+          const reminderRequest = {
+            identifier: reminderId,
+            content: {
+              title: '⏰ Recordatorio de medicamento',
+              body: `No olvides tomar ${medication.name} (${medication.dose})`,
+              sound: alarmSettings.soundEnabled ? 'default' : null,
+              data: {
+                medicationId: medication.id,
+                medicationName: medication.name,
+                dose: medication.dose,
+                scheduledTime: scheduledTime,
+                isReminder: true,
+                reminderNumber: i,
+              },
+              ...(Platform.OS === 'android' && {
+                channelId: 'medtime-reminders',
+                vibrate: alarmSettings.vibrationEnabled ? [0, 250, 250, 250] : undefined,
+              }),
+            },
+            trigger: {
+              type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+              date: reminderTime,
+            },
+          };
+          
+          await Notifications.scheduleNotificationAsync(reminderRequest);
+          notificationIds.push(reminderId);
+          
+          console.log(`[NotificationService] Recordatorio ${i} programado para ${reminderTime.toLocaleTimeString()}`);
+        }
+      }
+    }
+    
+    return notificationIds;
+  } catch (error) {
+    console.error('[NotificationService] Error al programar recordatorios:', error);
+    return [];
   }
 }

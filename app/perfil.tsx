@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpaci
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
 import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, diagnoseNotificationSystem } from '../src/notifications/notificationService';
+import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
 
 type AuthInfo = {
   email?: string | null;
@@ -22,6 +23,10 @@ export default function Perfil() {
   // Estados para edición
   const [editName, setEditName] = useState('');
   const [editAge, setEditAge] = useState('');
+  
+  // Estados para configuración de alarmas
+  const [alarmSettings, setAlarmSettings] = useState<AlarmSettings | null>(null);
+  const [isEditingAlarms, setIsEditingAlarms] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -66,6 +71,10 @@ export default function Perfil() {
           setEditAge(userProfile.age?.toString() || '');
         }
       }
+      
+      // Cargar configuración de alarmas
+      const alarmConfig = await loadAlarmSettings();
+      setAlarmSettings(alarmConfig);
     } catch (error) {
       console.error('[Perfil] Error al cargar:', error);
       Alert.alert('Error', 'No se pudo cargar el perfil');
@@ -174,6 +183,41 @@ export default function Perfil() {
     }
   };
 
+  const handleToggleAlarm = async (setting: keyof AlarmSettings, value: any) => {
+    if (!alarmSettings) return;
+    
+    try {
+      const success = await updateAlarmSetting(setting, value);
+      if (success) {
+        const updatedSettings = { ...alarmSettings, [setting]: value };
+        setAlarmSettings(updatedSettings);
+        console.log(`[Perfil] Configuración de alarma actualizada: ${setting} = ${value}`);
+      } else {
+        Alert.alert('Error', 'No se pudo actualizar la configuración de alarma');
+      }
+    } catch (error) {
+      console.error('[Perfil] Error al actualizar configuración de alarma:', error);
+      Alert.alert('Error', 'No se pudo actualizar la configuración');
+    }
+  };
+
+  const handleSaveAlarmSettings = async () => {
+    if (!alarmSettings) return;
+    
+    try {
+      const success = await saveAlarmSettings(alarmSettings);
+      if (success) {
+        setIsEditingAlarms(false);
+        Alert.alert('Éxito', 'Configuración de alarmas guardada correctamente');
+      } else {
+        Alert.alert('Error', 'No se pudo guardar la configuración de alarmas');
+      }
+    } catch (error) {
+      console.error('[Perfil] Error al guardar configuración de alarmas:', error);
+      Alert.alert('Error', 'No se pudo guardar la configuración');
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
@@ -263,6 +307,98 @@ export default function Perfil() {
           </View>
         )}
       </View>
+
+      {/* Sección de configuración de alarmas */}
+      {alarmSettings && (
+        <View style={s.section}>
+          <View style={s.sectionHeader}>
+            <Text style={s.sectionTitle}>🔔 Configuración de Alarmas</Text>
+            {!isEditingAlarms && (
+              <TouchableOpacity style={s.editButton} onPress={() => setIsEditingAlarms(true)}>
+                <Text style={s.editButtonText}>Editar</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {isEditingAlarms ? (
+            <View style={s.editForm}>
+              {/* Toggle principal de alarmas */}
+              <View style={s.toggleRow}>
+                <Text style={s.toggleLabel}>Activar alarmas</Text>
+                <TouchableOpacity
+                  style={[s.toggle, alarmSettings.enabled && s.toggleActive]}
+                  onPress={() => handleToggleAlarm('enabled', !alarmSettings.enabled)}
+                >
+                  <Text style={[s.toggleText, alarmSettings.enabled && s.toggleTextActive]}>
+                    {alarmSettings.enabled ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Toggle de sonido */}
+              <View style={s.toggleRow}>
+                <Text style={s.toggleLabel}>Sonido</Text>
+                <TouchableOpacity
+                  style={[s.toggle, alarmSettings.soundEnabled && s.toggleActive]}
+                  onPress={() => handleToggleAlarm('soundEnabled', !alarmSettings.soundEnabled)}
+                >
+                  <Text style={[s.toggleText, alarmSettings.soundEnabled && s.toggleTextActive]}>
+                    {alarmSettings.soundEnabled ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Toggle de vibración */}
+              <View style={s.toggleRow}>
+                <Text style={s.toggleLabel}>Vibración</Text>
+                <TouchableOpacity
+                  style={[s.toggle, alarmSettings.vibrationEnabled && s.toggleActive]}
+                  onPress={() => handleToggleAlarm('vibrationEnabled', !alarmSettings.vibrationEnabled)}
+                >
+                  <Text style={[s.toggleText, alarmSettings.vibrationEnabled && s.toggleTextActive]}>
+                    {alarmSettings.vibrationEnabled ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Intervalo de recordatorios */}
+              <Text style={s.label}>Intervalo de recordatorios (minutos)</Text>
+              <TextInput
+                style={s.input}
+                value={alarmSettings.reminderInterval.toString()}
+                onChangeText={(text) => {
+                  const value = parseInt(text) || 0;
+                  handleToggleAlarm('reminderInterval', Math.max(0, Math.min(60, value)));
+                }}
+                placeholder="5"
+                keyboardType="numeric"
+              />
+
+              <View style={s.buttonRow}>
+                <TouchableOpacity 
+                  style={[s.button, s.cancelButton]} 
+                  onPress={() => setIsEditingAlarms(false)}
+                >
+                  <Text style={s.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[s.button, s.saveButton]} 
+                  onPress={handleSaveAlarmSettings}
+                >
+                  <Text style={s.saveButtonText}>Guardar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View>
+              <Text style={s.row}>Estado: {alarmSettings.enabled ? '✅ Activadas' : '❌ Desactivadas'}</Text>
+              <Text style={s.row}>Sonido: {alarmSettings.soundEnabled ? '🔊 Activado' : '🔇 Desactivado'}</Text>
+              <Text style={s.row}>Vibración: {alarmSettings.vibrationEnabled ? '📳 Activada' : '📵 Desactivada'}</Text>
+              <Text style={s.row}>Recordatorios: Cada {alarmSettings.reminderInterval} minutos</Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Sección de notificaciones */}
       <View style={s.section}>
@@ -389,5 +525,38 @@ const s = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+
+  // Toggles
+  toggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  toggle: {
+    backgroundColor: '#e0e0e0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  toggleActive: {
+    backgroundColor: '#007AFF',
+  },
+  toggleText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  toggleTextActive: {
+    color: '#fff',
   },
 });
