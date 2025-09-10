@@ -23,7 +23,7 @@ import {
   findMedicineById,
 } from "../src/storage/localMedicines";
 import { loadMedicationsCatalog, initializeMedicationsCatalog, searchMedications, SupabaseMedication } from "../src/storage/supabaseMedications";
-import { scheduleMedicationNotificationWithAlarm, cancelAllMedicationNotifications } from "../src/notifications/notificationService";
+import { scheduleAlarm, cancelAllAlarmsForMedication } from "../src/alarms/alarmService";
 import { useAuth } from "./app";
 
 /** 🎛️ KNOBS */
@@ -215,29 +215,29 @@ export default function AddOrEditMedicineScreen() {
 
       // Si estamos editando, cancelar notificaciones anteriores
       if (isEditing && editingItem) {
-        await cancelAllMedicationNotifications(editingItem);
+        await cancelAllAlarmsForMedication(editingItem.id);
       }
 
       await saveMedicineLocally(item);
 
-      // Programar notificaciones con modal de alarma para el medicamento
-      let totalNotifications = 0;
+      // Programar alarmas para el medicamento
+      let totalAlarms = 0;
       for (const scheduledTime of item.times) {
-        const notificationId = await scheduleMedicationNotificationWithAlarm(item, scheduledTime);
-        if (notificationId) {
-          totalNotifications++;
+        const alarmId = await scheduleAlarm(item, scheduledTime);
+        if (alarmId) {
+          totalAlarms++;
         }
       }
       
-      if (totalNotifications > 0) {
+      if (totalAlarms > 0) {
         Alert.alert(
           isEditing ? "Actualizado" : "Guardado", 
-          `Medicamento guardado correctamente.\n\nSe programaron ${totalNotifications} recordatorios con botones de acción.`
+          `Medicamento guardado correctamente.\n\nSe programaron ${totalAlarms} alarmas.`
         );
       } else {
         Alert.alert(
           isEditing ? "Actualizado" : "Guardado", 
-          "Medicamento guardado correctamente.\n\n⚠️ No se pudieron programar recordatorios. Revisa los permisos de notificación."
+          "Medicamento guardado correctamente.\n\n⚠️ No se pudieron programar alarmas. Revisa la configuración de alarmas."
         );
       }
 

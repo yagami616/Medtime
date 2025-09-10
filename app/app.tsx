@@ -4,8 +4,7 @@ import { NavigationContainer, createNavigationContainerRef } from "@react-naviga
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from "@react-navigation/drawer";
 import * as WebBrowser from "expo-web-browser";
 import { View, Alert, Text } from "react-native";
-import { requestNotificationPermissions, addNotificationReceivedListener, addNotificationResponseListener, handleNotificationResponse } from "../src/notifications/notificationService";
-import { AppState } from 'react-native';
+import { setAlarmModalCallback } from "../src/alarms/alarmService";
 
 import LoginScreen from "../app/login";
 import AddOrEdit from "../app/index";
@@ -37,50 +36,14 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   }>({ visible: false, medication: null });
 
   useEffect(() => {
-    // Configurar notificaciones al iniciar la app
-    const setupNotifications = async () => {
-      const hasPermission = await requestNotificationPermissions();
-      if (!hasPermission) {
-        Alert.alert(
-          'Notificaciones',
-          'Para recibir recordatorios de medicamentos, por favor activa las notificaciones en la configuración de la app.',
-          [{ text: 'Entendido' }]
-        );
-      }
-    };
-
-    setupNotifications();
-
-    // Configurar listener para notificaciones recibidas
-    const notificationListener = addNotificationReceivedListener((notification) => {
-      console.log('[App] Notificación recibida:', notification);
-      console.log('[App] Estado de la app:', AppState.currentState);
-      
-      // Si es una notificación de medicamento con modal, SIEMPRE mostrar el modal
-      if (notification.request.content.data?.showModal && 
-          notification.request.content.data?.medicationId) {
-        
-        console.log('[App] Mostrando modal de alarma (sin importar estado de la app)');
-        setAlarmModal({
-          visible: true,
-          medication: {
-            id: notification.request.content.data.medicationId,
-            name: notification.request.content.data.medicationName,
-            dose: notification.request.content.data.dose,
-            scheduledTime: notification.request.content.data.scheduledTime,
-          }
-        });
-      } else if (!notification.request.content.data?.showModal) {
-        // Solo mostrar alert para notificaciones que no son de medicamentos
-        Alert.alert(
-          notification.request.content.title || 'Notificación',
-          notification.request.content.body || 'Nueva notificación',
-          [{ text: 'OK' }]
-        );
-      }
+    // Configurar callback del modal de alarma
+    setAlarmModalCallback((medication) => {
+      console.log('[App] Activando modal de alarma:', medication);
+      setAlarmModal({
+        visible: true,
+        medication: medication
+      });
     });
-
-    // No necesitamos listener de respuestas ya que solo usamos modal
 
     supabase.auth.getSession().then(({ data }) => {
       const s = data.session;
@@ -114,7 +77,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       sub.subscription.unsubscribe();
-      notificationListener.remove();
     };
   }, []);
 

@@ -4,7 +4,7 @@ import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpaci
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
-import { scheduleTestNotificationImmediate } from '../src/notifications/notificationService';
+import { scheduleTestAlarm } from '../src/alarms/alarmService';
 
 type AuthInfo = {
   email?: string | null;
@@ -345,16 +345,16 @@ export default function Perfil() {
           style={[s.button, { backgroundColor: '#e74c3c', marginTop: 10 }]} 
           onPress={async () => {
             try {
-              console.log('Programando notificación de prueba...');
-              const notificationId = await scheduleTestNotificationImmediate();
-              if (notificationId) {
-                Alert.alert('Prueba Programada', 'Se programó una notificación de prueba para 5 segundos. Debería aparecer el modal de alarma.');
+              console.log('Programando alarma de prueba...');
+              const alarmId = await scheduleTestAlarm();
+              if (alarmId) {
+                Alert.alert('Prueba Programada', 'Se programó una alarma de prueba para 5 segundos. Debería aparecer el modal de alarma.');
               } else {
-                Alert.alert('Error', 'No se pudo programar la notificación de prueba.');
+                Alert.alert('Error', 'No se pudo programar la alarma de prueba.');
               }
             } catch (error) {
               console.error('Error en prueba:', error);
-              Alert.alert('Error', 'Error al programar la notificación de prueba.');
+              Alert.alert('Error', 'Error al programar la alarma de prueba.');
             }
           }}
         >
