@@ -17,6 +17,73 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Configurar categorías de notificación con botones de acción
+export async function setupNotificationCategories(): Promise<void> {
+  try {
+    console.log('[NotificationService] Configurando categorías de notificación...');
+    
+    // Categoría para alarmas de medicamentos
+    await Notifications.setNotificationCategoryAsync('MEDICATION_ALARM', [
+      {
+        identifier: 'TAKE_MEDICATION',
+        buttonTitle: '✅ Tomar',
+        options: {
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+      {
+        identifier: 'SNOOZE_MEDICATION',
+        buttonTitle: '⏰ Aplazar 10min',
+        options: {
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+      {
+        identifier: 'CANCEL_MEDICATION',
+        buttonTitle: '❌ Cancelar',
+        options: {
+          isDestructive: true,
+          isAuthenticationRequired: false,
+        },
+      },
+    ]);
+
+    // Categoría para recordatorios
+    await Notifications.setNotificationCategoryAsync('MEDICATION_REMINDER', [
+      {
+        identifier: 'TAKE_MEDICATION',
+        buttonTitle: '✅ Tomar',
+        options: {
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+      {
+        identifier: 'SNOOZE_MEDICATION',
+        buttonTitle: '⏰ Aplazar 10min',
+        options: {
+          isDestructive: false,
+          isAuthenticationRequired: false,
+        },
+      },
+      {
+        identifier: 'CANCEL_MEDICATION',
+        buttonTitle: '❌ Cancelar',
+        options: {
+          isDestructive: true,
+          isAuthenticationRequired: false,
+        },
+      },
+    ]);
+
+    console.log('[NotificationService] ✅ Categorías de notificación configuradas');
+  } catch (error) {
+    console.error('[NotificationService] Error al configurar categorías:', error);
+  }
+}
+
 /**
  * Solicita permisos para notificaciones
  */
@@ -73,6 +140,10 @@ export async function requestNotificationPermissions(): Promise<boolean> {
       }
       
       console.log('[NotificationService] ✅ Permisos de notificación concedidos');
+      
+      // Configurar categorías de notificación
+      await setupNotificationCategories();
+      
       return true;
     } else {
       console.log('[NotificationService] ⚠️ Dispositivo no soportado para notificaciones');
@@ -536,7 +607,7 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
     console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Configurar notificación con configuración de alarma
+    // Configurar notificación con configuración de alarma y botones de acción
     const notificationRequest = {
       identifier: notificationId,
       content: {
@@ -550,6 +621,7 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
           scheduledTime: scheduledTime,
           isAlarm: true,
         },
+        categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
           vibrate: alarmSettings.vibrationEnabled ? [0, 250, 250, 250] : undefined,
@@ -635,6 +707,7 @@ export async function scheduleReminderNotifications(medication: MedItem, schedul
                 isReminder: true,
                 reminderNumber: i,
               },
+              categoryIdentifier: 'MEDICATION_REMINDER',
               ...(Platform.OS === 'android' && {
                 channelId: 'medtime-reminders',
                 vibrate: alarmSettings.vibrationEnabled ? [0, 250, 250, 250] : undefined,
@@ -658,5 +731,124 @@ export async function scheduleReminderNotifications(medication: MedItem, schedul
   } catch (error) {
     console.error('[NotificationService] Error al programar recordatorios:', error);
     return [];
+  }
+}
+
+/**
+ * Maneja las respuestas de las notificaciones interactivas
+ */
+export function handleNotificationResponse(response: Notifications.NotificationResponse): void {
+  const { actionIdentifier, notification } = response;
+  const data = notification.request.content.data;
+  
+  console.log('[NotificationService] Respuesta de notificación:', {
+    action: actionIdentifier,
+    medicationId: data?.medicationId,
+    medicationName: data?.medicationName,
+  });
+
+  switch (actionIdentifier) {
+    case 'TAKE_MEDICATION':
+      handleTakeMedication(data);
+      break;
+    case 'SNOOZE_MEDICATION':
+      handleSnoozeMedication(data);
+      break;
+    case 'CANCEL_MEDICATION':
+      handleCancelMedication(data);
+      break;
+    default:
+      console.log('[NotificationService] Acción no reconocida:', actionIdentifier);
+  }
+}
+
+/**
+ * Maneja cuando el usuario presiona "Tomar" medicamento
+ */
+async function handleTakeMedication(data: any): Promise<void> {
+  try {
+    console.log('[NotificationService] ✅ Medicamento tomado:', data?.medicationName);
+    
+    // Aquí podrías registrar en el historial que se tomó el medicamento
+    // Por ahora solo mostramos un log
+    console.log('[NotificationService] Registrando toma de medicamento en historial...');
+    
+    // TODO: Implementar registro en historial
+    // await addToHistory({
+    //   medicationId: data.medicationId,
+    //   medicationName: data.medicationName,
+    //   dose: data.dose,
+    //   takenAt: new Date().toISOString(),
+    //   status: 'taken'
+    // });
+    
+  } catch (error) {
+    console.error('[NotificationService] Error al registrar toma de medicamento:', error);
+  }
+}
+
+/**
+ * Maneja cuando el usuario presiona "Aplazar 10min"
+ */
+async function handleSnoozeMedication(data: any): Promise<void> {
+  try {
+    console.log('[NotificationService] ⏰ Aplazando medicamento 10 minutos:', data?.medicationName);
+    
+    // Programar nueva notificación para 10 minutos después
+    const snoozeTime = new Date(Date.now() + 10 * 60 * 1000); // +10 minutos
+    const snoozeId = `${data?.medicationId}_snooze_${Date.now()}`;
+    
+    const snoozeRequest = {
+      identifier: snoozeId,
+      content: {
+        title: '🔔 ¡Hora de medicamento! (Aplazado)',
+        body: `Es hora de tomar ${data?.medicationName} (${data?.dose})`,
+        sound: 'default',
+        data: {
+          medicationId: data?.medicationId,
+          medicationName: data?.medicationName,
+          dose: data?.dose,
+          scheduledTime: data?.scheduledTime,
+          isAlarm: true,
+          isSnoozed: true,
+        },
+        categoryIdentifier: 'MEDICATION_ALARM',
+      },
+      trigger: {
+        type: 'date' as Notifications.SchedulableTriggerInputTypes.DATE,
+        date: snoozeTime,
+      },
+    };
+
+    await Notifications.scheduleNotificationAsync(snoozeRequest);
+    console.log('[NotificationService] ✅ Notificación aplazada para:', snoozeTime.toLocaleTimeString());
+    
+  } catch (error) {
+    console.error('[NotificationService] Error al aplazar medicamento:', error);
+  }
+}
+
+/**
+ * Maneja cuando el usuario presiona "Cancelar"
+ */
+async function handleCancelMedication(data: any): Promise<void> {
+  try {
+    console.log('[NotificationService] ❌ Medicamento cancelado:', data?.medicationName);
+    
+    // Cancelar todas las notificaciones relacionadas con este medicamento
+    const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const idsToCancel = scheduled
+      .filter(n => n.identifier.includes(data?.medicationId))
+      .map(n => n.identifier);
+
+    for (const id of idsToCancel) {
+      await Notifications.cancelScheduledNotificationAsync(id);
+      console.log('[NotificationService] Notificación cancelada:', id);
+    }
+    
+    console.log('[NotificationService] ✅ Todas las notificaciones del medicamento canceladas');
+    
+  } catch (error) {
+    console.error('[NotificationService] Error al cancelar medicamento:', error);
   }
 }

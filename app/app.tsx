@@ -4,7 +4,7 @@ import { NavigationContainer, createNavigationContainerRef } from "@react-naviga
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from "@react-navigation/drawer";
 import * as WebBrowser from "expo-web-browser";
 import { View, Alert, Text } from "react-native";
-import { requestNotificationPermissions, addNotificationReceivedListener } from "../src/notifications/notificationService";
+import { requestNotificationPermissions, addNotificationReceivedListener, addNotificationResponseListener, handleNotificationResponse } from "../src/notifications/notificationService";
 
 import LoginScreen from "../app/login";
 import AddOrEdit from "../app/index";
@@ -48,11 +48,20 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     // Configurar listener para notificaciones recibidas
     const notificationListener = addNotificationReceivedListener((notification) => {
       console.log('[App] Notificación recibida:', notification);
-      Alert.alert(
-        notification.request.content.title || 'Notificación',
-        notification.request.content.body || 'Nueva notificación',
-        [{ text: 'OK' }]
-      );
+      // No mostrar alerta automática para notificaciones con botones de acción
+      if (!notification.request.content.categoryIdentifier) {
+        Alert.alert(
+          notification.request.content.title || 'Notificación',
+          notification.request.content.body || 'Nueva notificación',
+          [{ text: 'OK' }]
+        );
+      }
+    });
+
+    // Configurar listener para respuestas de notificaciones interactivas
+    const responseListener = addNotificationResponseListener((response) => {
+      console.log('[App] Respuesta de notificación recibida:', response);
+      handleNotificationResponse(response);
     });
 
     supabase.auth.getSession().then(({ data }) => {
@@ -88,6 +97,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       sub.subscription.unsubscribe();
       notificationListener.remove();
+      responseListener.remove();
     };
   }, []);
 
