@@ -211,10 +211,10 @@ export async function scheduleMedicationNotification(medication: MedItem, schedu
       triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000); // +1 día
     }
     
-    // Asegurar que la fecha sea al menos 10 segundos en el futuro (más preciso)
-    const minFutureTime = new Date(now.getTime() + 10 * 1000); // +10 segundos
+    // Asegurar que la fecha sea al menos 2 segundos en el futuro (máxima precisión)
+    const minFutureTime = new Date(now.getTime() + 2 * 1000); // +2 segundos
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
-      console.log('[NotificationService] Ajustando fecha para que sea al menos 10 segundos en el futuro');
+      console.log('[NotificationService] Ajustando fecha para que sea al menos 2 segundos en el futuro');
       triggerDate = minFutureTime;
     }
     
@@ -490,6 +490,51 @@ export async function sendImmediateTestNotification(): Promise<boolean> {
 }
 
 /**
+ * Envía una notificación inmediata con botones de acción para pruebas
+ */
+export async function sendImmediateTestNotificationWithButtons(): Promise<boolean> {
+  try {
+    console.log('[NotificationService] Enviando notificación inmediata con botones...');
+    
+    const hasPermission = await requestNotificationPermissions();
+    if (!hasPermission) {
+      console.log('[NotificationService] No se pueden enviar notificaciones sin permisos');
+      return false;
+    }
+
+    // Asegurar que las categorías estén configuradas
+    await setupNotificationCategories();
+
+    await Notifications.scheduleNotificationAsync({
+      identifier: `immediate_test_buttons_${Date.now()}`,
+      content: {
+        title: '🧪 Prueba con botones',
+        body: 'Esta notificación debería tener botones de acción',
+        sound: 'default',
+        data: { 
+          test: true, 
+          immediate: true,
+          medicationId: 'test_medication',
+          medicationName: 'Medicamento de Prueba',
+          dose: '1 pastilla'
+        },
+        categoryIdentifier: 'MEDICATION_ALARM',
+        ...(Platform.OS === 'android' && {
+          channelId: 'medtime-reminders',
+        }),
+      },
+      trigger: null, // Inmediata
+    });
+
+    console.log('[NotificationService] ✅ Notificación inmediata con botones enviada');
+    return true;
+  } catch (error) {
+    console.error('[NotificationService] Error al enviar notificación inmediata con botones:', error);
+    return false;
+  }
+}
+
+/**
  * Programa una notificación de prueba para verificar que funciona
  */
 export async function scheduleTestNotification(): Promise<string | null> {
@@ -591,8 +636,8 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
       triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000);
     }
     
-    // Asegurar que la fecha sea al menos 5 segundos en el futuro
-    const minFutureTime = new Date(now.getTime() + 5 * 1000);
+    // Asegurar que la fecha sea al menos 2 segundos en el futuro (máxima precisión)
+    const minFutureTime = new Date(now.getTime() + 2 * 1000);
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
       triggerDate = minFutureTime;
     }

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Button, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { supabase } from '../src/lib/supabaseClient';
 import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
-import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, diagnoseNotificationSystem } from '../src/notifications/notificationService';
+import { scheduleTestNotification, checkScheduledNotifications, sendImmediateTestNotification, sendImmediateTestNotificationWithButtons, diagnoseNotificationSystem } from '../src/notifications/notificationService';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
 
 type AuthInfo = {
@@ -166,6 +166,26 @@ export default function Perfil() {
     } catch (error) {
       console.error('[Perfil] Error al probar notificación inmediata:', error);
       Alert.alert('Error', 'No se pudo probar la notificación inmediata');
+    }
+  };
+
+  const handleImmediateTestNotificationWithButtons = async () => {
+    try {
+      console.log('[Perfil] Probando notificación inmediata con botones...');
+      const success = await sendImmediateTestNotificationWithButtons();
+      
+      if (success) {
+        Alert.alert(
+          'Prueba con botones', 
+          'Se envió una notificación inmediata con botones de acción. Deberías ver los botones: Tomar, Aplazar, Cancelar.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo enviar la notificación con botones. Revisa los permisos.');
+      }
+    } catch (error) {
+      console.error('[Perfil] Error al probar notificación con botones:', error);
+      Alert.alert('Error', 'No se pudo probar la notificación con botones');
     }
   };
 
@@ -411,6 +431,13 @@ export default function Perfil() {
           Envía una notificación inmediata para probar
         </Text>
         
+        <TouchableOpacity style={[s.testButton, s.buttonsButton]} onPress={handleImmediateTestNotificationWithButtons}>
+          <Text style={s.testButtonText}>🔘 Prueba con botones</Text>
+        </TouchableOpacity>
+        <Text style={s.testDescription}>
+          Envía una notificación inmediata con botones de acción
+        </Text>
+        
         <TouchableOpacity style={[s.testButton, s.scheduledButton]} onPress={handleTestNotification}>
           <Text style={s.testButtonText}>⏰ Prueba programada</Text>
         </TouchableOpacity>
@@ -506,6 +533,10 @@ const s = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     marginTop: 8,
+  },
+  buttonsButton: {
+    backgroundColor: '#8B5CF6',
+    marginTop: 12,
   },
   scheduledButton: {
     backgroundColor: '#3B82F6',
