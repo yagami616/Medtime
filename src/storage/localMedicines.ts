@@ -12,11 +12,24 @@ export type MedItem = {
   createdAt: string;     // ISO
 };
 
-const KEY = "medtime:meds";
+const KEY_GUEST = "medtime:meds:guest";
+const KEY_USER_PREFIX = "medtime:meds:user:";
 
-/** Lee todo el arreglo desde storage. */
-export async function readAllMedicines(): Promise<MedItem[]> {
-  const raw = await AsyncStorage.getItem(KEY);
+/** Obtiene la clave de almacenamiento según el tipo de usuario */
+function getStorageKey(owner: "guest" | "user", userId?: string): string {
+  if (owner === "guest") {
+    return KEY_GUEST;
+  }
+  if (!userId) {
+    throw new Error("userId es requerido para usuarios autenticados");
+  }
+  return `${KEY_USER_PREFIX}${userId}`;
+}
+
+/** Lee medicamentos de un tipo específico de usuario */
+export async function readMedicinesByOwner(owner: "guest" | "user", userId?: string): Promise<MedItem[]> {
+  const key = getStorageKey(owner, userId);
+  const raw = await AsyncStorage.getItem(key);
   if (!raw) return [];
   try {
     const arr = JSON.parse(raw) as MedItem[];
@@ -24,7 +37,7 @@ export async function readAllMedicines(): Promise<MedItem[]> {
     const seen = new Set<string>();
     const dedup = arr.filter(m => (seen.has(m.id) ? false : (seen.add(m.id), true)));
     if (dedup.length !== arr.length) {
-      await AsyncStorage.setItem(KEY, JSON.stringify(dedup));
+      await AsyncStorage.setItem(key, JSON.stringify(dedup));
       return dedup;
     }
     return arr;
@@ -33,9 +46,24 @@ export async function readAllMedicines(): Promise<MedItem[]> {
   }
 }
 
-/** Escribe el arreglo completo. */
+/** Lee todo el arreglo desde storage (para compatibilidad) */
+export async function readAllMedicines(): Promise<MedItem[]> {
+  const guestMeds = await readMedicinesByOwner("guest");
+  // Para readAllMedicines, no podemos obtener todos los usuarios, así que solo devolvemos invitados
+  return guestMeds;
+}
+
+/** Escribe medicamentos de un tipo específico de usuario */
+export async function writeMedicinesByOwner(owner: "guest" | "user", list: MedItem[], userId?: string): Promise<void> {
+  const key = getStorageKey(owner, userId);
+  await AsyncStorage.setItem(key, JSON.stringify(list));
+}
+
+/** Escribe el arreglo completo (para compatibilidad) */
 export async function writeAllMedicines(list: MedItem[]): Promise<void> {
-  await AsyncStorage.setItem(KEY, JSON.stringify(list));
+  // Solo procesar medicamentos de invitados para compatibilidad
+  const guestMeds = list.filter(m => m.owner === "guest");
+  await writeMedicinesByOwner("guest", guestMeds);
 }
 
 /**
@@ -43,8 +71,8 @@ export async function writeAllMedicines(list: MedItem[]): Promise<void> {
  * - Si ya existe el id -> lo reemplaza y lo mueve al frente.
  * - Si no existe -> lo agrega al frente.
  */
-export async function saveMedicineLocally(item: MedItem): Promise<void> {
-  const all = await readAllMedicines();
+export async function saveMedicineLocally(item: MedItem, userId?: string): Promise<void> {
+  const all = await readMedicinesByOwner(item.owner, userId);
   const idx = all.findIndex(m => m.id === item.id);
   let next: MedItem[];
   if (idx >= 0) {
@@ -53,21 +81,60 @@ export async function saveMedicineLocally(item: MedItem): Promise<void> {
   } else {
     next = [item, ...all];
   }
-  await writeAllMedicines(next);
+  await writeMedicinesByOwner(item.owner, next, userId);
 }
 
 /** Elimina por id. */
-export async function removeMedicineLocally(id: string): Promise<void> {
-  const all = await readAllMedicines();
-  const next = all.filter(m => m.id !== id);
-  await writeAllMedicines(next);
+export async function removeMedicineLocally(id: string, userId?: string): Promise<void> {
+  // Buscar en invitados
+  const guestMeds = await readMedicinesByOwner("guest");
+  const guestNext = guestMeds.filter(m => m.id !== id);
+  await writeMedicinesByOwner("guest", guestNext);
+  
+  // Si hay userId, buscar también en usuarios
+  if (userId) {
+    const userMeds = await readMedicinesByOwner("user", userId);
+    const userNext = userMeds.filter(m => m.id !== id);
+    await writeMedicinesByOwner("user", userNext, userId);
+  }
 }
 
-/** Busca un medicamento por id. */
+/** Busca un medicamento por id en todos los tipos de usuario. */
 export async function findMedicineById(id: string): Promise<MedItem | undefined> {
-  const all = await readAllMedicines();
-  return all.find(m => m.id === id);
+  // Buscar en medicamentos de invitados
+  const guestMeds = await readMedicinesByOwner("guest");
+  const foundInGuest = guestMeds.find(m => m.id === id);
+  if (foundInGuest) return foundInGuest;
+  
+  // Si no se encuentra en invitados, buscar en todos los usuarios autenticados
+  // Necesitamos obtener todas las claves de AsyncStorage que empiecen con KEY_USER_PREFIX
+  try {
+    const allKeys = await AsyncStorage.getAllKeys();
+    const userKeys = allKeys.filter(key => key.startsWith(KEY_USER_PREFIX));
+    
+    for (const key of userKeys) {
+      const raw = await AsyncStorage.getItem(key);
+      if (raw) {
+        try {
+          const userMeds = JSON.parse(raw) as MedItem[];
+          const found = userMeds.find(m => m.id === id);
+          if (found) return found;
+        } catch (error) {
+          console.error(`Error parsing user medicines from key ${key}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error searching in user medicines:', error);
+  }
+  
+  return undefined;
 }
 
-/** 🔁 Wrapper para compatibilidad con el código de la lista */
-export const getLocalMedicines = readAllMedicines;
+/** Obtiene medicamentos filtrados por tipo de usuario */
+export async function getLocalMedicines(owner?: "guest" | "user", userId?: string): Promise<MedItem[]> {
+  if (owner) {
+    return await readMedicinesByOwner(owner, userId);
+  }
+  return await readAllMedicines();
+}

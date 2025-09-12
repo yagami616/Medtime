@@ -11,6 +11,11 @@ export type SupabaseProfile = {
   updated_at?: string;
 };
 
+// Tipo local que incluye gender para uso interno
+export type LocalProfile = SupabaseProfile & {
+  gender?: string;
+};
+
 /**
  * Guarda o actualiza el perfil del usuario en Supabase
  */

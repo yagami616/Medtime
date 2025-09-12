@@ -4,10 +4,10 @@ import { supabase } from '../lib/supabaseClient';
 export type SupabaseHistoryEntry = {
   id?: string;
   user_id: string;
-  medication_id?: string;
+  medication_id?: string; // Hacer opcional para medicamentos locales
   med_name: string;
   dose: string;
-  scheduled_times: string[];
+  scheduled_times: string[]; // Volver a array (PostgreSQL array)
   status: 'Tomado' | 'Cancelado';
   taken_at: string;
   created_at?: string;
@@ -18,16 +18,22 @@ export type SupabaseHistoryEntry = {
  */
 export async function saveHistoryEntryToSupabase(entry: Omit<SupabaseHistoryEntry, 'id' | 'user_id' | 'created_at'>): Promise<SupabaseHistoryEntry | null> {
   try {
+    console.log('[SupabaseHistory] Iniciando guardado de entrada:', entry);
+    
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) {
       console.error('[SupabaseHistory] No hay usuario autenticado');
       return null;
     }
 
+    console.log('[SupabaseHistory] Usuario autenticado:', user.user.id);
+
     const historyData = {
       ...entry,
       user_id: user.user.id,
     };
+
+    console.log('[SupabaseHistory] Datos a insertar:', historyData);
 
     const { data, error } = await supabase
       .from('medication_history')
@@ -35,12 +41,15 @@ export async function saveHistoryEntryToSupabase(entry: Omit<SupabaseHistoryEntr
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SupabaseHistory] Error de Supabase:', error);
+      throw error;
+    }
 
-    console.log('[SupabaseHistory] Entrada guardada exitosamente:', data);
+    console.log('[SupabaseHistory] ✅ Entrada guardada exitosamente:', data);
     return data;
   } catch (error) {
-    console.error('[SupabaseHistory] Error al guardar entrada:', error);
+    console.error('[SupabaseHistory] ❌ Error al guardar entrada:', error);
     return null;
   }
 }
@@ -50,11 +59,15 @@ export async function saveHistoryEntryToSupabase(entry: Omit<SupabaseHistoryEntr
  */
 export async function loadUserHistoryFromSupabase(): Promise<SupabaseHistoryEntry[]> {
   try {
+    console.log('[SupabaseHistory] Cargando historial desde Supabase...');
+    
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) {
       console.error('[SupabaseHistory] No hay usuario autenticado');
       return [];
     }
+
+    console.log('[SupabaseHistory] Usuario autenticado para carga:', user.user.id);
 
     const { data, error } = await supabase
       .from('medication_history')
@@ -62,12 +75,16 @@ export async function loadUserHistoryFromSupabase(): Promise<SupabaseHistoryEntr
       .eq('user_id', user.user.id)
       .order('taken_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SupabaseHistory] Error de Supabase al cargar:', error);
+      throw error;
+    }
 
-    console.log('[SupabaseHistory] Historial cargado exitosamente:', data?.length || 0, 'entradas');
+    console.log('[SupabaseHistory] ✅ Historial cargado exitosamente:', data?.length || 0, 'entradas');
+    console.log('[SupabaseHistory] Datos cargados:', data);
     return data || [];
   } catch (error) {
-    console.error('[SupabaseHistory] Error al cargar historial:', error);
+    console.error('[SupabaseHistory] ❌ Error al cargar historial:', error);
     return [];
   }
 }
@@ -170,7 +187,9 @@ export function supabaseHistoryToCSV(entries: SupabaseHistoryEntry[]): string {
   
   const lines = entries.map((entry) => {
     const fecha = new Date(entry.taken_at).toLocaleString();
-    const horarios = entry.scheduled_times
+    // Convertir scheduled_times a array si es string
+    const timesArray = Array.isArray(entry.scheduled_times) ? entry.scheduled_times : [entry.scheduled_times];
+    const horarios = timesArray
       .map((iso) => {
         const d = new Date(iso);
         const hh = d.getHours().toString().padStart(2, "0");

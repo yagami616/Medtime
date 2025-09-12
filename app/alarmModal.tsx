@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from './app';
 import { addToHistory } from '../src/storage/history';
+import { saveHistoryEntryToSupabase } from '../src/storage/supabaseHistory';
 import { scheduleMedicationNotificationWithAlarm } from '../src/notifications/notificationService';
 
 interface AlarmModalProps {
@@ -37,11 +38,11 @@ export default function AlarmModal({
   useEffect(() => {
     if (visible && medication) {
       playAlarmSound();
-      // Vibrar continuamente mientras el modal esté abierto
+      // Vibrar continuamente mientras el modal esté abierto con patrón más intenso
       const vibrationInterval = setInterval(() => {
-        console.log('[AlarmModal] Vibración continua');
-        Vibration.vibrate([0, 1500, 500, 1500]);
-      }, 2000);
+        console.log('[AlarmModal] Vibración continua intensa');
+        Vibration.vibrate([0, 1000, 500, 1000, 500, 1000]);
+      }, 1500); // Más frecuente
 
       return () => {
         clearInterval(vibrationInterval);
@@ -52,10 +53,10 @@ export default function AlarmModal({
 
   const playAlarmSound = async () => {
     try {
-      // Usar vibración agresiva como alarma
-      console.log('[AlarmModal] Iniciando alarma con vibración');
-      // Patrón de vibración más agresivo
-      Vibration.vibrate([0, 2000, 1000, 2000, 1000, 2000]);
+      // Usar vibración muy agresiva como alarma
+      console.log('[AlarmModal] Iniciando alarma con vibración intensa');
+      // Patrón de vibración muy agresivo y repetitivo
+      Vibration.vibrate([0, 1000, 500, 1000, 500, 1000, 500, 1000]);
     } catch (error) {
       console.error('Error playing alarm sound:', error);
     }
@@ -92,8 +93,32 @@ export default function AlarmModal({
       
       console.log('[AlarmModal] Agregando al historial:', historyEntry);
       try {
+        // Guardar en historial local
         await addToHistory(historyEntry);
-        console.log('[AlarmModal] ✅ Historial actualizado correctamente');
+        console.log('[AlarmModal] ✅ Historial local actualizado correctamente');
+        
+        // Si el usuario está autenticado, también guardar en Supabase
+        if (user?.mode === "user") {
+          console.log('[AlarmModal] Usuario autenticado, guardando en Supabase...');
+          const supabaseEntry = {
+            // medication_id: undefined, // No enviar para medicamentos locales
+            med_name: medication.name,
+            dose: medication.dose,
+            taken_at: new Date().toISOString(),
+            status: 'Tomado' as const,
+            scheduled_times: [medication.scheduledTime], // Enviar como array
+          };
+          
+          console.log('[AlarmModal] Datos para Supabase:', supabaseEntry);
+          const savedEntry = await saveHistoryEntryToSupabase(supabaseEntry);
+          if (savedEntry) {
+            console.log('[AlarmModal] ✅ Historial Supabase actualizado correctamente:', savedEntry);
+          } else {
+            console.warn('[AlarmModal] ⚠️ No se pudo guardar en Supabase, pero se guardó localmente');
+          }
+        } else {
+          console.log('[AlarmModal] Usuario no autenticado, solo guardando localmente');
+        }
       } catch (error) {
         console.error('[AlarmModal] ❌ Error al actualizar historial:', error);
         Alert.alert('Error', 'No se pudo guardar en el historial');
@@ -105,7 +130,7 @@ export default function AlarmModal({
       Alert.alert('✅ Medicamento Tomado', `${medication.name} registrado correctamente.`);
     } catch (error) {
       console.error('Error al marcar medicamento como tomado:', error);
-      Alert.alert('Error', `No se pudo registrar la toma del medicamento: ${error.message || error}`);
+      Alert.alert('Error', `No se pudo registrar la toma del medicamento: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -120,7 +145,9 @@ export default function AlarmModal({
         name: medication.name,
         dose: medication.dose,
         times: [snoozeTime.toISOString()],
-      });
+        owner: 'user',
+        createdAt: new Date().toISOString(),
+      }, snoozeTime.toISOString());
 
       await stopAlarm();
       onClose();
@@ -153,8 +180,32 @@ export default function AlarmModal({
       
       console.log('[AlarmModal] Agregando al historial:', historyEntry);
       try {
+        // Guardar en historial local
         await addToHistory(historyEntry);
-        console.log('[AlarmModal] ✅ Historial actualizado correctamente');
+        console.log('[AlarmModal] ✅ Historial local actualizado correctamente');
+        
+        // Si el usuario está autenticado, también guardar en Supabase
+        if (user?.mode === "user") {
+          console.log('[AlarmModal] Usuario autenticado, guardando cancelación en Supabase...');
+          const supabaseEntry = {
+            // medication_id: undefined, // No enviar para medicamentos locales
+            med_name: medication.name,
+            dose: medication.dose,
+            taken_at: new Date().toISOString(),
+            status: 'Cancelado' as const,
+            scheduled_times: [medication.scheduledTime], // Enviar como array
+          };
+          
+          console.log('[AlarmModal] Datos de cancelación para Supabase:', supabaseEntry);
+          const savedEntry = await saveHistoryEntryToSupabase(supabaseEntry);
+          if (savedEntry) {
+            console.log('[AlarmModal] ✅ Cancelación guardada en Supabase correctamente:', savedEntry);
+          } else {
+            console.warn('[AlarmModal] ⚠️ No se pudo guardar cancelación en Supabase, pero se guardó localmente');
+          }
+        } else {
+          console.log('[AlarmModal] Usuario no autenticado, solo guardando cancelación localmente');
+        }
       } catch (error) {
         console.error('[AlarmModal] ❌ Error al actualizar historial:', error);
         Alert.alert('Error', 'No se pudo guardar en el historial');
@@ -166,7 +217,7 @@ export default function AlarmModal({
       Alert.alert('❌ Cancelado', `${medication.name} cancelado.`);
     } catch (error) {
       console.error('Error al cancelar medicamento:', error);
-      Alert.alert('Error', `No se pudo cancelar el medicamento: ${error.message || error}`);
+      Alert.alert('Error', `No se pudo cancelar el medicamento: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
@@ -209,7 +260,7 @@ export default function AlarmModal({
               style={[styles.button, styles.snoozeButton]}
               onPress={handleSnooze}
             >
-              <Text style={styles.buttonText}>⏰ Aplazar 10min</Text>
+              <Text style={styles.buttonText}>⏰ Posponer 10min</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -222,7 +273,7 @@ export default function AlarmModal({
 
           {/* Instrucciones */}
           <Text style={styles.instructions}>
-            Toca un botón para proceder
+            Selecciona una acción para continuar
           </Text>
         </View>
       </View>

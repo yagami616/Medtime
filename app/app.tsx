@@ -4,6 +4,7 @@ import { NavigationContainer, createNavigationContainerRef } from "@react-naviga
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList, DrawerItem } from "@react-navigation/drawer";
 import * as WebBrowser from "expo-web-browser";
 import { View, Alert, Text } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { setAlarmModalCallback } from "../src/alarms/alarmService";
 import { addNotificationReceivedListener } from "../src/notifications/notificationService";
 
@@ -122,9 +123,6 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         visible={alarmModal.visible}
         medication={alarmModal.medication}
         onClose={() => setAlarmModal({ visible: false, medication: null })}
-        onTake={() => console.log('Medicamento tomado')}
-        onSnooze={() => console.log('Medicamento aplazado')}
-        onCancel={() => console.log('Medicamento cancelado')}
       />
     </AuthContext.Provider>
   );
@@ -142,11 +140,11 @@ function CustomDrawerContent(props: any) {
       {/* Mostrar estado del usuario */}
       <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
         <Text style={{ fontSize: 16, fontWeight: 'bold', color: isGuest ? '#ff9800' : '#4caf50' }}>
-          {isGuest ? '👤 Modo Invitado' : '✅ Usuario Autenticado'}
+          {isGuest ? '👤 Modo Invitado' : `✅ ${user?.name || 'Usuario'}`}
         </Text>
         {!isGuest && user?.name && (
           <Text style={{ fontSize: 14, color: '#666', marginTop: 4 }}>
-            {user.name}
+            Usuario Autenticado
           </Text>
         )}
       </View>
@@ -156,6 +154,9 @@ function CustomDrawerContent(props: any) {
       <DrawerItem
         label="Cerrar sesión"
         labelStyle={{ color: '#d32f2f', fontWeight: 'bold' }}
+        icon={({ color, size }) => (
+          <Ionicons name="log-out-outline" size={size} color="#d32f2f" />
+        )}
         onPress={async () => {
           await signOut(); // RootNavigator mostrará Login automáticamente
         }}
@@ -176,11 +177,54 @@ function RootNavigator() {
     <Drawer.Navigator
       initialRouteName="Agregar medicamento"
       drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        drawerActiveTintColor: '#4caf50',
+        drawerInactiveTintColor: '#666',
+        drawerStyle: {
+          backgroundColor: '#fff',
+        },
+      }}
     >
-      <Drawer.Screen name="Agregar medicamento" component={AddOrEdit} />
-      <Drawer.Screen name="Lista" component={Lista} />
-      {!isGuest && <Drawer.Screen name="Historial" component={Historial} />}
-      {!isGuest && <Drawer.Screen name="Perfil" component={Perfil} />}
+      <Drawer.Screen 
+        name="Agregar medicamento" 
+        component={AddOrEdit}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="add-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Drawer.Screen 
+        name="Lista" 
+        component={Lista}
+        options={{
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="list-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      {!isGuest && (
+        <Drawer.Screen 
+          name="Historial" 
+          component={Historial}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="time-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
+      {!isGuest && (
+        <Drawer.Screen 
+          name="Perfil" 
+          component={Perfil}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="person-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
     </Drawer.Navigator>
   );
 }

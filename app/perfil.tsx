@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Alert, Image, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { supabase } from '../src/lib/supabaseClient';
-import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile } from '../src/storage/supabaseProfile';
+import { loadProfileFromSupabase, saveProfileToSupabase, syncProfileWithGoogle, SupabaseProfile, LocalProfile } from '../src/storage/supabaseProfile';
 import { loadAlarmSettings, saveAlarmSettings, updateAlarmSetting, AlarmSettings } from '../src/storage/alarmSettings';
 import { scheduleTestAlarm } from '../src/alarms/alarmService';
 
@@ -17,7 +17,7 @@ type AuthInfo = {
 
 export default function Perfil() {
   const [info, setInfo] = useState<AuthInfo>({ hasSession: false });
-  const [profile, setProfile] = useState<SupabaseProfile | null>(null);
+  const [profile, setProfile] = useState<LocalProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   
@@ -67,12 +67,18 @@ export default function Perfil() {
           userProfile = await syncProfileWithGoogle(user);
         }
         
-        setProfile(userProfile);
+        // Convertir a LocalProfile agregando gender por defecto
+        const localProfile: LocalProfile = {
+          ...userProfile!,
+          gender: 'No especificar' // Siempre inicializar con valor por defecto
+        };
         
-        if (userProfile) {
-          setEditName(userProfile.name);
-          setEditAge(userProfile.age?.toString() || '');
-          setEditGender(userProfile.gender || 'No especificar');
+        setProfile(localProfile);
+        
+        if (localProfile) {
+          setEditName(localProfile.name);
+          setEditAge(localProfile.age?.toString() || '');
+          setEditGender(localProfile.gender || 'No especificar');
         }
       }
       
@@ -104,18 +110,23 @@ export default function Perfil() {
     
     setLoading(true);
     try {
-      const updatedProfile = {
-        ...profile,
+      // Crear perfil para Supabase (sin gender)
+      const supabaseProfile = {
+        user_id: profile.user_id,
         name: editName.trim(),
         age: editAge ? age : null,
-        gender: editGender,
         avatar_url: selectedImage || profile?.avatar_url,
       };
 
-      const result = await saveProfileToSupabase(updatedProfile);
+      const result = await saveProfileToSupabase(supabaseProfile);
       
       if (result) {
-        setProfile(result);
+        // Actualizar el perfil local manteniendo el gender
+        const updatedLocalProfile: LocalProfile = {
+          ...result,
+          gender: editGender, // Mantener el gender localmente
+        };
+        setProfile(updatedLocalProfile);
         setIsEditing(false);
         Alert.alert('Éxito', 'Perfil actualizado correctamente');
       } else {
@@ -201,6 +212,7 @@ export default function Perfil() {
       Alert.alert('Error', 'No se pudo guardar la configuración');
     }
   };
+
 
   useEffect(() => {
     load();
@@ -297,6 +309,7 @@ export default function Perfil() {
         </View>
       </View>
 
+
     </ScrollView>
   );
 }
@@ -329,22 +342,22 @@ const s = StyleSheet.create({
     paddingHorizontal: 20
   },
   avatar: { 
-    width: 100, 
-    height: 100, 
-    borderRadius: 50, 
-    marginBottom: 10 
+    width: 140, 
+    height: 140, 
+    borderRadius: 70, 
+    marginBottom: 15 
   },
   avatarPlaceholder: { 
-    width: 100, 
-    height: 100, 
-    borderRadius: 50, 
+    width: 140, 
+    height: 140, 
+    borderRadius: 70, 
     backgroundColor: '#e5e7eb', 
     justifyContent: 'center', 
     alignItems: 'center',
-    marginBottom: 10
+    marginBottom: 15
   },
   avatarText: { 
-    fontSize: 36, 
+    fontSize: 48, 
     fontWeight: 'bold', 
     color: '#6b7280' 
   },

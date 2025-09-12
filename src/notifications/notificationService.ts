@@ -9,11 +9,6 @@ import { loadAlarmSettings, AlarmSettings } from '../storage/alarmSettings';
 // Variable global para el modal de alarma
 let showAlarmModal: ((medication: any) => void) | null = null;
 
-// Función para registrar el callback del modal
-export function setAlarmModalCallback(callback: (medication: any) => void) {
-  showAlarmModal = callback;
-}
-
 // Configurar el comportamiento de las notificaciones
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
@@ -151,12 +146,14 @@ export async function requestNotificationPermissions(): Promise<boolean> {
           name: 'Recordatorios de Medicamentos',
           description: 'Notificaciones para recordar tomar medicamentos',
           importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
+          vibrationPattern: [0, 1000, 500, 1000, 500, 1000], // Patrón más agresivo
           lightColor: '#FF231F7C',
           sound: 'default',
           enableVibrate: true,
           enableLights: true,
           showBadge: true,
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          bypassDnd: true, // Pasar el modo "No molestar"
         });
         
         console.log('[NotificationService] ✅ Canal de notificación configurado para Android');
@@ -234,10 +231,10 @@ export async function scheduleMedicationNotification(medication: MedItem, schedu
       triggerDate = new Date(today.getTime() + 24 * 60 * 60 * 1000); // +1 día
     }
     
-    // Asegurar que la fecha sea al menos 2 segundos en el futuro (máxima precisión)
-    const minFutureTime = new Date(now.getTime() + 2 * 1000); // +2 segundos
+    // Asegurar que la fecha sea al menos 1 segundo en el futuro (máxima precisión)
+    const minFutureTime = new Date(now.getTime() + 1000); // +1 segundo
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
-      console.log('[NotificationService] Ajustando fecha para que sea al menos 2 segundos en el futuro');
+      console.log('[NotificationService] Ajustando fecha para que sea al menos 1 segundo en el futuro');
       triggerDate = minFutureTime;
     }
     
@@ -262,9 +259,10 @@ export async function scheduleMedicationNotification(medication: MedItem, schedu
     const notificationRequest = {
       identifier: notificationId,
       content: {
-        title: '💊 Hora de tomar medicamento',
+        title: '🚨 ¡HORA DE MEDICAMENTO!',
         body: `Es hora de tomar ${medication.name} (${medication.dose})`,
         sound: 'default',
+        priority: Notifications.AndroidNotificationPriority.MAX,
         data: {
           medicationId: medication.id,
           medicationName: medication.name,
@@ -273,6 +271,9 @@ export async function scheduleMedicationNotification(medication: MedItem, schedu
         },
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
+          vibrate: [0, 1000, 500, 1000, 500, 1000],
+          lights: true,
+          lightColor: '#FF231F7C',
         }),
       },
       trigger: {
@@ -340,17 +341,6 @@ export async function cancelAllMedicationNotifications(medication: MedItem): Pro
   console.log(`[NotificationService] ✅ ${idsToCancel.length} notificaciones canceladas para ${medication.name}`);
 }
 
-/**
- * Cancela todas las notificaciones programadas
- */
-export async function cancelAllNotifications(): Promise<void> {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    console.log('Todas las notificaciones canceladas');
-  } catch (error) {
-    console.error('Error al cancelar todas las notificaciones:', error);
-  }
-}
 
 /**
  * Obtiene todas las notificaciones programadas
@@ -725,8 +715,8 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
       triggerDate = new Date(now.getTime() + 10 * 1000);
     }
     
-    // Asegurar que la fecha sea al menos 2 segundos en el futuro (máxima precisión)
-    const minFutureTime = new Date(now.getTime() + 2 * 1000);
+    // Asegurar que la fecha sea al menos 1 segundo en el futuro (máxima precisión)
+    const minFutureTime = new Date(now.getTime() + 1000);
     if (triggerDate.getTime() <= minFutureTime.getTime()) {
       triggerDate = minFutureTime;
     }
@@ -741,13 +731,14 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
     console.log(`[NotificationService] Fecha programada: ${triggerDate.toISOString()}`);
     console.log(`[NotificationService] Diferencia en segundos: ${(triggerDate.getTime() - now.getTime()) / 1000}`);
     
-    // Configurar notificación que solo activa el modal (sin mostrar notificación del sistema)
+    // Configurar notificación que activa el modal con máxima intensidad
     const notificationRequest = {
       identifier: notificationId,
       content: {
-        title: '🚨 ¡Hora de medicamento!',
+        title: '🚨 ¡HORA DE MEDICAMENTO!',
         body: `Es hora de tomar ${medication.name} (${medication.dose})`,
-        sound: false, // No sonido del sistema
+        sound: 'default', // Sonido del sistema para mayor intensidad
+        priority: Notifications.AndroidNotificationPriority.MAX,
         data: {
           medicationId: medication.id,
           medicationName: medication.name,
@@ -759,7 +750,9 @@ export async function scheduleMedicationNotificationWithAlarm(medication: MedIte
         categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
-          vibrate: false, // No vibración del sistema
+          vibrate: [0, 1000, 500, 1000, 500, 1000],
+          lights: true,
+          lightColor: '#FF231F7C',
         }),
       },
       trigger: {
@@ -833,7 +826,7 @@ export async function scheduleReminderNotifications(medication: MedItem, schedul
             content: {
               title: '⏰ Recordatorio de medicamento',
               body: `No olvides tomar ${medication.name} (${medication.dose})`,
-              sound: alarmSettings.soundEnabled ? 'default' : null,
+              sound: alarmSettings.soundEnabled ? 'default' : false,
               data: {
                 medicationId: medication.id,
                 medicationName: medication.name,
@@ -898,6 +891,25 @@ export function handleNotificationResponse(response: Notifications.NotificationR
 }
 
 /**
+ * Cancela todas las notificaciones pendientes y limpia alarmas
+ */
+export async function cancelAllNotifications(): Promise<void> {
+  try {
+    console.log('[NotificationService] Cancelando todas las notificaciones pendientes...');
+    
+    // Cancelar todas las notificaciones programadas
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    
+    // Limpiar todas las notificaciones entregadas
+    await Notifications.dismissAllNotificationsAsync();
+    
+    console.log('[NotificationService] ✅ Todas las notificaciones han sido canceladas');
+  } catch (error) {
+    console.error('[NotificationService] Error al cancelar notificaciones:', error);
+  }
+}
+
+/**
  * Función de prueba para programar notificación inmediata
  */
 export async function scheduleTestNotificationImmediate(): Promise<string | null> {
@@ -932,7 +944,6 @@ export async function scheduleTestNotificationImmediate(): Promise<string | null
         categoryIdentifier: 'MEDICATION_ALARM',
         ...(Platform.OS === 'android' && {
           channelId: 'medtime-reminders',
-          vibrate: false,
         }),
       },
       trigger: {
@@ -1054,3 +1065,6 @@ async function handleCancelMedication(data: any): Promise<void> {
     console.error('[NotificationService] Error al cancelar medicamento:', error);
   }
 }
+
+// Función para registrar el callback del modal (importada desde alarmService)
+export { setAlarmModalCallback } from '../alarms/alarmService';

@@ -184,7 +184,8 @@ export default function AddOrEditMedicineScreen() {
         await cancelAllAlarmsForMedication(editingItem.id);
       }
 
-      await saveMedicineLocally(item);
+      const userId = user?.mode === "user" ? user.name || undefined : undefined;
+      await saveMedicineLocally(item, userId);
 
       // Programar alarmas para el medicamento
       let totalAlarms = 0;

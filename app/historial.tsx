@@ -6,6 +6,7 @@ import {
 import { AntDesign } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { colors } from "../src/theme/colors";
 import { getHistory, HistoryEntry, historyToCSV } from "../src/storage/history";
@@ -64,6 +65,14 @@ const HistorialScreen = React.memo(function HistorialScreen() {
     load();
   }, []);
 
+  // Recargar historial cada vez que la pantalla reciba foco
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('[Historial] Pantalla enfocada, recargando historial...');
+      load();
+    }, [])
+  );
+
   const ordered = useMemo(() => {
     const dataToUse = useSupabase ? supabaseRows : rows;
     const copy = [...dataToUse];
@@ -101,103 +110,87 @@ const HistorialScreen = React.memo(function HistorialScreen() {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-");
       const fileName = `historial_medtime_${stamp}.csv`;
       
-      // Intentar guardar en la carpeta de descargas (más accesible)
-      let fileUri = '';
-      let saveLocation = '';
-      
-      try {
-        // Para emuladores Android, usar la ruta del almacenamiento externo
-        const externalStorageDir = FileSystem.documentDirectory + '../../../../storage/emulated/0/Download/';
-        const downloadsUri = externalStorageDir + fileName;
-        
-        console.log('[Historial] Intentando guardar en:', downloadsUri);
-        
-        // Verificar si la carpeta de descargas existe
-        const downloadsInfo = await FileSystem.getInfoAsync(externalStorageDir);
-        if (downloadsInfo.exists) {
-          await FileSystem.writeAsStringAsync(downloadsUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-          fileUri = downloadsUri;
-          saveLocation = 'Carpeta de Descargas (SDK > Download)';
-        } else {
-          throw new Error('Carpeta de descargas no disponible');
-        }
-      } catch (error) {
-        console.log('No se pudo guardar en Downloads, intentando ruta alternativa:', error);
-        
-        try {
-          // Intentar ruta alternativa para emuladores
-          const alternativeDir = FileSystem.documentDirectory + '../../../Download/';
-          const alternativeUri = alternativeDir + fileName;
-          
-          const altInfo = await FileSystem.getInfoAsync(alternativeDir);
-          if (altInfo.exists) {
-            await FileSystem.writeAsStringAsync(alternativeUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-            fileUri = alternativeUri;
-            saveLocation = 'Carpeta de Descargas (ruta alternativa)';
-          } else {
-            throw new Error('Ruta alternativa no disponible');
-          }
-        } catch (altError) {
-          console.log('Ruta alternativa falló, usando carpeta de documentos:', altError);
-          // Fallback: guardar en la carpeta de documentos de la app
-          fileUri = FileSystem.documentDirectory! + fileName;
-          await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-          saveLocation = 'Carpeta de documentos de MedTime';
-        }
-      }
-
-      // Verificar que el archivo se creó correctamente
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      if (fileInfo.exists) {
-        Alert.alert(
-          "✅ Archivo descargado", 
-          `El historial se ha guardado como:\n\n${fileName}\n\nUbicación: ${saveLocation}`,
-          [
-            { text: "OK" },
-            { 
-              text: "Compartir archivo", 
-              onPress: async () => {
-                const canShare = await Sharing.isAvailableAsync();
-                if (canShare) {
-                  await Sharing.shareAsync(fileUri, { 
-                    mimeType: "text/csv", 
-                    dialogTitle: "Compartir historial de MedTime" 
-                  });
-                } else {
-                  Alert.alert("Error", "No se puede compartir en este dispositivo");
+      // Mostrar diálogo para elegir acción
+      Alert.alert(
+        "📄 Guardar tu archivo",
+        `El historial se ha preparado como:\n\n${fileName}\n\n¿Qué deseas hacer?`,
+        [
+          {
+            text: "💾 Guardar archivo",
+            onPress: async () => {
+              try {
+                // Intentar diferentes ubicaciones donde la app tiene permisos
+                let fileUri = '';
+                let saveLocation = '';
+                
+                // 1. Intentar carpeta de caché (más accesible)
+                try {
+                  const cacheDir = FileSystem.cacheDirectory!;
+                  fileUri = cacheDir + fileName;
+                  await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+                  saveLocation = 'Carpeta de caché (más accesible)';
+                  // console.log('Guardado en caché:', fileUri);
+                } catch (cacheError) {
+                  // console.log('Caché falló, intentando documentos:', cacheError);
+                  
+                  // 2. Fallback: carpeta de documentos de la app
+                  const appDocumentsDir = FileSystem.documentDirectory!;
+                  fileUri = appDocumentsDir + fileName;
+                  await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+                  saveLocation = 'Documentos de MedTime';
+                  // console.log('Guardado en documentos:', fileUri);
                 }
-              }
-            },
-            { 
-              text: "Ver ubicación", 
-              onPress: () => {
-                // Mostrar la ubicación real del archivo
+                
+                // Verificar que se guardó correctamente
+                const fileInfo = await FileSystem.getInfoAsync(fileUri);
+                if (fileInfo.exists) {
+                  // Abrir automáticamente el selector de compartir
+                  const canShare = await Sharing.isAvailableAsync();
+                  if (canShare) {
+                    try {
+                      await Sharing.shareAsync(fileUri, { 
+                        mimeType: "text/csv", 
+                        dialogTitle: "Compartir historial de MedTime",
+                        UTI: "public.comma-separated-values-text"
+                      });
+                    } catch (shareError) {
+                      console.error('Error al compartir:', shareError);
+                      Alert.alert(
+                        "✅ Archivo guardado",
+                        `El archivo se ha guardado en:\n\n📁 ${saveLocation}\n\n${fileName}\n\nPara acceder: Abre un administrador de archivos y busca la carpeta de MedTime.`
+                      );
+                    }
+                  } else {
+                    Alert.alert(
+                      "✅ Archivo guardado",
+                      `El archivo se ha guardado en:\n\n📁 ${saveLocation}\n\n${fileName}\n\nPara acceder: Abre un administrador de archivos y busca la carpeta de MedTime.`
+                    );
+                  }
+                } else {
+                  throw new Error('No se pudo crear el archivo');
+                }
+              } catch (error) {
+                console.error('Error al guardar:', error);
                 Alert.alert(
-                  "📍 Ubicación del archivo",
-                  `El archivo se guardó en:\n\n${fileUri}\n\nPara acceder al archivo:\n1. Abre el administrador de archivos\n2. Ve a "SDK" > "Download"\n3. Busca el archivo: ${fileName}\n\nSi no aparece, busca en "Archivos internos"`,
+                  "❌ Error al guardar",
+                  "No se pudo crear el archivo. Verifica que tengas espacio suficiente en el dispositivo.",
                   [
-                    { text: "Entendido" },
+                    { text: "OK" },
                     { 
-                      text: "Compartir archivo", 
-                      onPress: async () => {
-                        const canShare = await Sharing.isAvailableAsync();
-                        if (canShare) {
-                          await Sharing.shareAsync(fileUri, { 
-                            mimeType: "text/csv", 
-                            dialogTitle: "Compartir historial" 
-                          });
-                        }
-                      }
+                      text: "Intentar de nuevo", 
+                      onPress: () => onDownload()
                     }
                   ]
                 );
               }
             }
-          ]
-        );
-      } else {
-        Alert.alert("Error", "No se pudo crear el archivo.");
-      }
+          },
+          {
+            text: "❌ Cancelar",
+            style: "cancel"
+          }
+        ]
+      );
     } catch (e) {
       console.error(e);
       Alert.alert("Error", "No se pudo exportar el historial.");
@@ -214,7 +207,9 @@ const HistorialScreen = React.memo(function HistorialScreen() {
     const scheduledTimes = isSupabaseItem ? (item as SupabaseHistoryEntry).scheduled_times : (item as HistoryEntry).scheduledTimes;
     const dateField = isSupabaseItem ? (item as SupabaseHistoryEntry).taken_at : (item as HistoryEntry).at;
     
-    const horarios = scheduledTimes.map(fmtHour).join(" · ");
+    // Convertir scheduled_times a array si es string (Supabase) o mantener como array (local)
+    const timesArray = Array.isArray(scheduledTimes) ? scheduledTimes : [scheduledTimes];
+    const horarios = timesArray.map(fmtHour).join(" · ");
     const badgeBg = status === "Tomado" ? UI.BADGE_BLUE : UI.BADGE_RED;
 
     return (
@@ -260,7 +255,7 @@ const HistorialScreen = React.memo(function HistorialScreen() {
       ) : (
         <FlatList
           data={ordered}
-          keyExtractor={(r) => r.id}
+          keyExtractor={(r) => r.id || `item-${Math.random()}`}
           renderItem={renderItem}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           contentContainerStyle={{ paddingTop: 8, paddingBottom: 24 }}

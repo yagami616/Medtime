@@ -214,6 +214,8 @@ export async function scheduleTestAlarm(): Promise<string | null> {
       name: 'Paracetamol',
       dose: '500 mg',
       times: [new Date(Date.now() + 5 * 1000).toISOString()], // 5 segundos después
+      owner: 'guest',
+      createdAt: new Date().toISOString(),
     };
     
     return await scheduleAlarm(testMedication, testMedication.times[0]);

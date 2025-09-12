@@ -33,7 +33,10 @@ const ListaScreen = React.memo(function ListaScreen() {
 
   async function load() {
     setLoading(true);
-    const list = await getLocalMedicines();
+    // Obtener medicamentos filtrados por tipo de usuario
+    const owner = user?.mode === "guest" ? "guest" : "user";
+    const userId = user?.mode === "user" ? user.name || undefined : undefined; // Usar name como ID único
+    const list = await getLocalMedicines(owner, userId);
     list.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     setItems(list);
     setLoading(false);
@@ -61,25 +64,31 @@ const ListaScreen = React.memo(function ListaScreen() {
             // Cancelar notificaciones del medicamento
             await cancelAllMedicationNotifications(m);
             
-            // Guardar en historial local
-            await addHistoryFromMed(m, "Cancelado");
-            
-            // Si el usuario está autenticado, guardar también en Supabase
+            // Solo guardar en historial si el usuario está autenticado
             if (user?.mode === "user") {
+              // Guardar en historial local
+              await addHistoryFromMed(m, "Cancelado");
+              
+              // Guardar también en Supabase
               await saveHistoryEntryToSupabase({
+                // medication_id: undefined, // No enviar para medicamentos locales
                 med_name: m.name,
                 dose: m.dose,
-                scheduled_times: m.times,
+                scheduled_times: m.times, // Mantener como array
                 status: "Cancelado",
                 taken_at: new Date().toISOString(),
               });
+              
+              // Mostrar confirmación de que se guardó en historial
+              Alert.alert('Medicamento eliminado', 'Se ha guardado en el historial como "Cancelado" y se cancelaron las notificaciones.');
+            } else {
+              // Para usuarios invitados, solo mostrar confirmación simple
+              Alert.alert('Medicamento eliminado', 'El medicamento ha sido eliminado y se cancelaron las notificaciones.');
             }
             
-            await removeMedicineLocally(m.id);
+            const userId = user?.mode === "user" ? user.name || undefined : undefined;
+            await removeMedicineLocally(m.id, userId);
             await load();
-            
-            // Mostrar confirmación de que se guardó en historial
-            Alert.alert('Medicamento eliminado', 'Se ha guardado en el historial como "Cancelado" y se cancelaron las notificaciones.');
           } catch (error) {
             console.error('[Lista] Error al eliminar medicamento:', error);
             Alert.alert('Error', 'No se pudo eliminar el medicamento');
